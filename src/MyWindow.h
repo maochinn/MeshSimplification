@@ -74,19 +74,6 @@ public:
 
 	// which viewpoint are we drawing from
 	Fl_Button* worldCam;
-	//Fl_Button* trainCam;
 	Fl_Button* topCam;
 
-	//// the type of the spline (use its value to determine)
-	//Fl_Browser* splineBrowser;
-
-	//// are we animating the train?
-	//Fl_Button* runButton;
-	//// if we're animating it, how fast should it go?
-	//Fl_Value_Slider* speed;
-	//Fl_Button* arcLength;		// do we use arc length for speed?
-
-	//Fl_Browser* waterBrowser;
-	//Fl_Value_Slider* amplitude;
-	//Fl_Value_Slider* wavelength;
 };

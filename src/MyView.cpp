@@ -193,7 +193,6 @@ void MyView::draw()
 
 		if (!this->gl_mesh)
 		{
-			puts("OVO");
 			this->gl_mesh = new GLMesh();
 			this->gl_mesh->Init("../MeshSimplification/Models/neptune_200k_org.obj");
 		}
@@ -363,8 +362,8 @@ void MyView::draw()
 	this->shader->Use();
 
 	glm::mat4 model_matrix = glm::mat4();
-	//model_matrix = glm::translate(model_matrix, glm::vec3(0.0f, 5.0f, 0.0f));
-	//model_matrix = glm::scale(model_matrix, glm::vec3(100.0f, 100.0f, 100.0f));
+	model_matrix = glm::scale(model_matrix, glm::vec3(0.1f, 0.1f, 0.1f));
+	model_matrix = glm::translate(model_matrix, glm::vec3(98.5175, 250.207, 1045.73));
 	glUniformMatrix4fv(glGetUniformLocation(this->shader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
 	glUniform3fv(glGetUniformLocation(this->shader->Program, "u_color"), 1, &glm::vec3(0.0f, 1.0f, 0.0f)[0]);
 	this->texture->bind(0);
@@ -380,7 +379,7 @@ void MyView::draw()
 	////unbind VAO
 	//glBindVertexArray(0);
 
-	glBindVertexArray(this->gl_mesh->vao);
+	glBindVertexArray(this->gl_mesh->vao.vao);
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	glDrawElements(GL_TRIANGLES, this->gl_mesh->mesh.n_faces() * 3, GL_UNSIGNED_INT, 0);
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);

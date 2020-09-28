@@ -2,7 +2,7 @@
 #include <map>
 
 
-//struct OpenMesh::VertexHandle const OpenMesh::PolyConnectivity::InvalidVertexHandle;
+struct OpenMesh::VertexHandle const OpenMesh::PolyConnectivity::InvalidVertexHandle;
 
 #pragma region MyMesh
 
@@ -52,9 +52,8 @@ void MyMesh::ClearMesh()
 
 #pragma region GLMesh
 
-GLMesh::GLMesh(): ebo(0), vao(0), vboVertices(0), vboNormal(0), vboTexCoord(0)
+GLMesh::GLMesh()
 {
-	puts("OUO");
 }
 
 GLMesh::~GLMesh()
@@ -74,7 +73,7 @@ bool GLMesh::Init(std::string fileName)
 
 void GLMesh::Render()
 {
-	glBindVertexArray(vao);
+	glBindVertexArray(this->vao.vao);
 	glDrawElements(GL_TRIANGLES, mesh.n_faces() * 3, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
 }
@@ -126,23 +125,23 @@ void GLMesh::LoadToShader()
 		}
 	}
 
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
+	glGenVertexArrays(1, &this->vao.vao);
+	glBindVertexArray(this->vao.vao);
 
-	glGenBuffers(1, &vboVertices);
-	glBindBuffer(GL_ARRAY_BUFFER, vboVertices);
+	glGenBuffers(3, this->vao.vbo);
+
+	glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[0]);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Point) * vertices.size(), &vertices[0], GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
 
-	glGenBuffers(1, &vboNormal);
-	glBindBuffer(GL_ARRAY_BUFFER, vboNormal);
+	glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[1]);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Normal) * normals.size(), &normals[0], GL_STATIC_DRAW);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(1);
 
-	glGenBuffers(1, &ebo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+	glGenBuffers(1, &this->vao.ebo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vao.ebo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * indices.size(), &indices[0], GL_STATIC_DRAW);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -160,10 +159,9 @@ void GLMesh::LoadTexCoordToShader()
 			texCoords.push_back(texCoord);
 		}
 
-		glBindVertexArray(vao);
+		glBindVertexArray(this->vao.vao);
 
-		glGenBuffers(1, &vboTexCoord);
-		glBindBuffer(GL_ARRAY_BUFFER, vboTexCoord);
+		glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[2]);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::TexCoord2D) * texCoords.size(), &texCoords[0], GL_STATIC_DRAW);
 		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
 		glEnableVertexAttribArray(2);

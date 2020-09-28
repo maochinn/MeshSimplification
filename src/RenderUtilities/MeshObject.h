@@ -5,6 +5,8 @@
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include <glad\glad.h>
 
+# include "BufferObject.h"
+
 typedef OpenMesh::TriMesh_ArrayKernelT<>  TriMesh;
 
 class MyMesh : public TriMesh
@@ -28,9 +30,11 @@ public:
 	void LoadTexCoordToShader();
 
 	MyMesh mesh;
-	GLuint vao;
-	GLuint ebo;
-	GLuint vboVertices, vboNormal, vboTexCoord;
+	VAO vao;
+	//GLuint vao;
+	//GLuint ebo;
+	//GLuint vboVertices, vboNormal, vboTexCoord;
+
 
 private:
 

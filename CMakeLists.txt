@@ -55,28 +55,17 @@ add_library(Utilities
     ${SRC_DIR}Utilities/3DUtils.cpp
     ${SRC_DIR}Utilities/Pnt3f.cpp)
 
-target_link_libraries(MeshSimplification debug 
-    ${LIB_DIR}Debug/fltk_formsd.lib 
-    ${LIB_DIR}Debug/fltk_gld.lib
-    ${LIB_DIR}Debug/fltk_imagesd.lib
-    ${LIB_DIR}Debug/fltk_jpegd.lib
-    ${LIB_DIR}Debug/fltk_pngd.lib
-    ${LIB_DIR}Debug/fltk_zd.lib
-    ${LIB_DIR}Debug/fltkd.lib
-    ${LIB_DIR}Debug/opencv_world341d.lib
-    ${LIB_DIR}Debug/OpenMeshCored.lib
-    ${LIB_DIR}Debug/OpenMeshToolsd.lib)
-
-target_link_libraries(MeshSimplification optimized 
-    ${LIB_DIR}Release/fltk_forms.lib
-    ${LIB_DIR}Release/fltk_gl.lib
-    ${LIB_DIR}Release/fltk_images.lib
-    ${LIB_DIR}Release/fltk_jpeg.lib
-    ${LIB_DIR}Release/fltk_png.lib
-    ${LIB_DIR}Release/fltk_z.lib
-    ${LIB_DIR}Release/opencv_world341.lib
-    ${LIB_DIR}Release/OpenMeshCore.lib
-    ${LIB_DIR}Release/OpenMeshTools.lib)
+target_link_libraries(MeshSimplification 
+debug ${LIB_DIR}Debug/fltk_formsd.lib      optimized ${LIB_DIR}Release/fltk_forms.lib
+debug ${LIB_DIR}Debug/fltk_gld.lib         optimized ${LIB_DIR}Release/fltk_gl.lib
+debug ${LIB_DIR}Debug/fltk_imagesd.lib     optimized ${LIB_DIR}Release/fltk_images.lib
+debug ${LIB_DIR}Debug/fltk_jpegd.lib       optimized ${LIB_DIR}Release/fltk_jpeg.lib
+debug ${LIB_DIR}Debug/fltk_pngd.lib        optimized ${LIB_DIR}Release/fltk_png.lib
+debug ${LIB_DIR}Debug/fltk_zd.lib          optimized ${LIB_DIR}Release/fltk_z.lib
+debug ${LIB_DIR}Debug/fltkd.lib            optimized ${LIB_DIR}Release/fltk.lib
+debug ${LIB_DIR}Debug/opencv_world341d.lib optimized ${LIB_DIR}Release/opencv_world341.lib
+debug ${LIB_DIR}Debug/OpenMeshCored.lib    optimized ${LIB_DIR}Release/OpenMeshCore.lib
+debug ${LIB_DIR}Debug/OpenMeshToolsd.lib   optimized ${LIB_DIR}Release/OpenMeshTools.lib)
 
 target_link_libraries(MeshSimplification 
     ${LIB_DIR}OpenGL32.lib

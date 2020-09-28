@@ -44,7 +44,7 @@
 //========================================================================
 MyWindow::
 MyWindow(const int x, const int y)
-	: Fl_Double_Window(x, y, 800, 600, "Water Surface")
+	: Fl_Double_Window(x, y, 800, 600, "Mesh Simplification")
 	//========================================================================
 {
 	// make all of the widgets
