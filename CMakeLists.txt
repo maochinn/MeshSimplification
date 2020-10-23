@@ -22,6 +22,7 @@ set(SRC_RENDER_UTILITIES
     ${SRC_DIR}RenderUtilities/MeshObject.h)
 
 include_directories(${INCLUDE_DIR})
+include_directories(${INCLUDE_DIR}eigen3/)
 include_directories(${INCLUDE_DIR}glad4.6/include/)
 include_directories(${INCLUDE_DIR}glm-0.9.8.5/glm/)
 include_directories(${INCLUDE_DIR}OpenMesh/)
