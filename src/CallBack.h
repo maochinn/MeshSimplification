@@ -68,13 +68,28 @@ void idleCB(MyWindow* mw)
 		}
 
 	}
-
-	//if (mw->runButton->value()) {	// only advance time if appropriate
-	//	if (clock() - lastRedraw > CLOCKS_PER_SEC / 30) {
-	//		lastRedraw = clock();
-	//		//tw->advanceTrain();
-	//		mw->damageMe();
-	//	}
-	//}
 }
+
+void testingCB(Fl_Widget*, MyWindow* mw)
+{
+	mw->myView->gl_mesh->simplification(0.5f);
+	mw->damageMe();
+}
+
+void simplificationCB(Fl_Widget*, MyWindow* mw)
+{
+	mw->myView->gl_mesh->simplification(mw->simplification_slider->value());
+	mw->damageMe();
+}
+
+//void doCB(Fl_Widget*, MyWindow* mw)
+//{
+//	mw->myView->gl_mesh->collispe();
+//	mw->damageMe();
+//}
+//void undoCB(Fl_Widget*, MyWindow* mw)
+//{
+//	mw->myView->gl_mesh->simplification();
+//	mw->damageMe();
+//}
 

@@ -190,7 +190,7 @@ handle(int e)
 			};
 			break;
 		case FL_MOUSEWHEEL: {
-			float zamt = (Fl::event_dy() < 0) ? 1.1f : 1/1.1f;
+			float zamt = (Fl::event_dy() < 0) ? 1 / 1.1f : 1.1f;
 			eyeZ *= zamt;
 			wind->damage(1);
 			return 1;

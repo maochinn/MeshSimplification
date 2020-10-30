@@ -84,36 +84,35 @@ MyWindow(const int x, const int y)
 		// camera buttons - in a radio button group
 		Fl_Group* camGroup = new Fl_Group(600, pty, 195, 20);
 		camGroup->begin();
-		worldCam = new Fl_Button(605, pty, 60, 20, "World");
-		worldCam->type(FL_RADIO_BUTTON);		// radio button
-		worldCam->value(1);			// turned on
-		worldCam->selection_color((Fl_Color)3); // yellow when pressed
-		worldCam->callback((Fl_Callback*)damageCB, this);
+		world_cam = new Fl_Button(605, pty, 60, 20, "World");
+		world_cam->type(FL_RADIO_BUTTON);		// radio button
+		world_cam->value(1);			// turned on
+		world_cam->selection_color((Fl_Color)3); // yellow when pressed
+		world_cam->callback((Fl_Callback*)damageCB, this);
 		//trainCam = new Fl_Button(670, pty, 60, 20, "Train");
   //      trainCam->type(FL_RADIO_BUTTON);
   //      trainCam->value(0);
   //      trainCam->selection_color((Fl_Color)3);
 		//trainCam->callback((Fl_Callback*)damageCB,this);
-		topCam = new Fl_Button(735, pty, 60, 20, "Top");
-		topCam->type(FL_RADIO_BUTTON);
-		topCam->value(0);
-		topCam->selection_color((Fl_Color)3);
-		topCam->callback((Fl_Callback*)damageCB, this);
+		top_cam = new Fl_Button(735, pty, 60, 20, "Top");
+		top_cam->type(FL_RADIO_BUTTON);
+		top_cam->value(0);
+		top_cam->selection_color((Fl_Color)3);
+		top_cam->callback((Fl_Callback*)damageCB, this);
 		camGroup->end();
 
 		pty += 30;
 
-		//// browser to select spline types
-		//// TODO: make sure these choices are the same as what the code supports
-		//splineBrowser = new Fl_Browser(605, pty, 120, 75, "Spline Type");
-		//splineBrowser->type(2);		// select
-		//splineBrowser->callback((Fl_Callback*)damageCB, this);
-		//splineBrowser->add("Linear");
-		//splineBrowser->add("Cardinal Cubic");
-		//splineBrowser->add("Cubic B-Spline");
-		//splineBrowser->select(2);
+		// browser to select spline types
+		simplification_browser = new Fl_Browser(605, pty, 120, 75, "Method");
+		simplification_browser->type(2);		// select
+		simplification_browser->callback((Fl_Callback*)damageCB, this);
+		simplification_browser->add("Average");
+		simplification_browser->add("Median");
+		simplification_browser->add("Error quadrics");
+		simplification_browser->select(1);
 
-		//pty += 110;
+		pty += 110;
 
 		//// add and delete points
 		//Fl_Button* ap = new Fl_Button(605,pty,80,20,"Add Point");
@@ -122,15 +121,11 @@ MyWindow(const int x, const int y)
 		//dp->callback((Fl_Callback*)deletePointCB,this);
 
 		//pty += 25;
-		//// reset the points
-		//resetButton = new Fl_Button(735,pty,60,20,"Reset");
-		//resetButton->callback((Fl_Callback*)resetCB,this);
-		//Fl_Button* loadb = new Fl_Button(605,pty,60,20,"Load");
-		//loadb->callback((Fl_Callback*) loadCB, this);
-		//Fl_Button* saveb = new Fl_Button(670,pty,60,20,"Save");
-		//saveb->callback((Fl_Callback*) saveCB, this);
+		// reset the points
+		Fl_Button* testing = new Fl_Button(605,pty,60,20,"Testing");
+		testing->callback((Fl_Callback*)testingCB, this);
+		pty += 25;
 
-		//pty += 25;
 		//// roll the points
 		//Fl_Button* rx = new Fl_Button(605,pty,30,20,"R+X");
 		//rx->callback((Fl_Callback*)rpxCB,this);
@@ -161,13 +156,14 @@ MyWindow(const int x, const int y)
 
 		//pty += 30;
 
-		//wavelength = new Fl_Value_Slider(655, pty, 140, 20, "Wavelength");
-		//wavelength->range(0.0, 1.0);
-		//wavelength->value(0.5);
-		//wavelength->align(FL_ALIGN_LEFT);
-		//wavelength->type(FL_HORIZONTAL);
+		simplification_slider = new Fl_Value_Slider(655, pty, 140, 20, "Weight");
+		simplification_slider->range(0.0, 1.0);
+		simplification_slider->value(1.0);
+		simplification_slider->align(FL_ALIGN_LEFT);
+		simplification_slider->type(FL_HORIZONTAL);
+		simplification_slider->callback((Fl_Callback*)simplificationCB, this);
 
-		//pty += 30;
+		pty += 30;
 
 		// TODO: add widgets for all of your fancier features here
 #ifdef EXAMPLE_SOLUTION
@@ -208,7 +204,6 @@ void MyWindow::
 damageMe()
 //========================================================================
 {
-	//if (trainView->selectedCube >= ((int)m_Track.points.size()))
-	//	trainView->selectedCube = 0;
+
 	myView->damage(1);
 }

@@ -70,10 +70,13 @@ public:
 	Fl_Group* widgets;	// all widgets, grouped for resizing ease
 
 	// utility buttons
-	Fl_Button* resetButton;
+	//Fl_Button* resetButton;
 
 	// which viewpoint are we drawing from
-	Fl_Button* worldCam;
-	Fl_Button* topCam;
+	Fl_Button* world_cam;
+	Fl_Button* top_cam;
+
+	Fl_Browser* simplification_browser;
+	Fl_Value_Slider* simplification_slider;
 
 };
