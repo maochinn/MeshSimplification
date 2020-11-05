@@ -4,9 +4,8 @@
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include <glad\glad.h>
-#include <glm/glm.hpp>
-
 #include <queue>
+#include <Eigen/Dense>
 
 # include "BufferObject.h"
 
@@ -25,7 +24,7 @@ public:
 	int FindVertex(MyMesh::Point pointToFind);
 	void ClearMesh();
 
-	static glm::mat4 computeErrorQuadrics(MyMesh::Point, MyMesh::Normal);
+	void computeErrorQuadrics(MyMesh::VertexHandle);
 	void computeErrorQuadrics();
 
 	void computeError(MyMesh::EdgeHandle);
@@ -37,10 +36,14 @@ public:
 
 	bool collapse();
 private:
-	OpenMesh::VPropHandleT<glm::mat4> Q;
-	OpenMesh::EPropHandleT<glm::mat4> new_Q;
-	OpenMesh::EPropHandleT<MyMesh::Point> new_v;
-	OpenMesh::EPropHandleT<float> epsilon;
+
+	float last_min;
+	bool use_last;
+	MyMesh::EdgeHandle last_handle;
+
+	OpenMesh::VPropHandleT<Eigen::Matrix4d> prop_Q;
+	OpenMesh::EPropHandleT<MyMesh::Point> prop_v;
+	OpenMesh::EPropHandleT<float> prop_e;
 };
 
 class GLMesh

@@ -1,7 +1,6 @@
 #include <map>
-
+#include <set>
 #include "MeshObject.h"
-
 struct OpenMesh::VertexHandle const OpenMesh::PolyConnectivity::InvalidVertexHandle;
 
 #pragma region MyMesh
@@ -48,80 +47,100 @@ void MyMesh::ClearMesh()
 		garbage_collection();
 	}
 }
-glm::mat4 MyMesh::computeErrorQuadrics(MyMesh::Point point, MyMesh::Normal normal)
+void MyMesh::computeErrorQuadrics(MyMesh::VertexHandle v_h)
 {
-	float x = point[0];
-	float y = point[1];
-	float z = point[2];
+	Eigen::Matrix4d Q = Eigen::Matrix4d::Zero();
+	MyMesh::Point point = this->point(v_h);
 
-	//float len = sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+	for (MyMesh::VertexFaceIter vf_it = this->vf_iter(v_h); vf_it.is_valid(); ++vf_it) {
+		MyMesh::Normal normal = this->normal(vf_it);
 
-	//float a = normal[0] / len;
-	//float b = normal[1] / len;
-	//float c = normal[2] / len;
+		float a = normal[0];
+		float b = normal[1];
+		float c = normal[2];
+		float d = -(a * point[0] + b * point[1] + c * point[2]);
 
-	float a = normal[0];
-	float b = normal[1];
-	float c = normal[2];
-	float d = -(a * x + b * y + c * z);
+		Eigen::Matrix4d K;
+		K << a * a, a* b, a* c, a* d, \
+			a* b, b* b, b* c, b* d, \
+			a* c, b* c, c* c, c* d, \
+			a* d, b* d, c* d, d* d;
 
-	return glm::mat4(
-		a * a, a * b, a * c, a * d,
-		a * b, b * b, b * c, b * d,
-		a * c, b * c, c * c, c * d,
-		a * d, b * d, c * d, d * d);
+		Q += K;
+	}
+	this->property(prop_Q, v_h) = Q;
 }
 
 void MyMesh::computeErrorQuadrics()
 {
-	this->add_property(Q, "Q");
+	this->add_property(prop_Q, "prop_Q");
 
 	for (MyMesh::VertexIter v_it = this->vertices_begin(); v_it != this->vertices_end(); ++v_it)
 	{
-		MyMesh::Point point = this->point(*v_it);
-		MyMesh::Normal normal = this->normal(*v_it);
-		
-		this->property(Q, *v_it) = this->computeErrorQuadrics(point, normal);
+		this->computeErrorQuadrics(v_it);
 	}
 }
 
 void MyMesh::computeError(MyMesh::EdgeHandle e_handle)
 {
-	glm::mat4 Q1 = this->property(Q, to_vertex_handle(halfedge_handle(e_handle, 0)));
-	glm::mat4 Q2 = this->property(Q, from_vertex_handle(halfedge_handle(e_handle, 0)));
+	Eigen::Matrix4d& Q1 = this->property(prop_Q, to_vertex_handle(halfedge_handle(e_handle, 0)));
+	Eigen::Matrix4d& Q2 = this->property(prop_Q, from_vertex_handle(halfedge_handle(e_handle, 0)));
 
-	glm::mat4 Q3 = Q1 + Q2;
-	
-	//glm::mat4 A(Q3);
-	//A[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-	//float temp = glm::determinant(glm::transpose(A));
-	glm::vec4 v;
-	//if (abs(temp) < 0.00001f)
-	//{
-		MyMesh::Point p1 = this->point(to_vertex_handle(halfedge_handle(e_handle, 0)));
-		MyMesh::Point p2 = this->point(from_vertex_handle(halfedge_handle(e_handle, 0)));
-		MyMesh::Point average = (p1 + p2) * 0.5f;
-		v = glm::vec4(average[0], average[1], average[2], 1.0f);
-	//}
-	//else
-	//{
-	//	A = glm::inverse(glm::transpose(A));
-	//	v = A * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-	//	v /= v.w;
-	//}
-	
-	float e = abs(glm::dot(v, Q3 * v));
+	Eigen::Matrix4d Q = Q1 + Q2;
 
-	this->property(new_Q, e_handle) = Q3;
-	this->property(new_v, e_handle) = MyMesh::Point(v.x, v.y, v.z);
-	this->property(epsilon, e_handle) = e;
+	Eigen::Matrix4d dQ(Q);
+	dQ(3, 0) = 0;
+	dQ(3, 1) = 0;
+	dQ(3, 2) = 0;
+	dQ(3, 3) = 1;
+	double det = dQ.determinant();
+
+	Eigen::Vector4d V(0, 0, 0, 1);
+	float e = 0;
+
+	MyMesh::Point& p1 = this->point(to_vertex_handle(halfedge_handle(e_handle, 0)));
+	MyMesh::Point& p2 = this->point(from_vertex_handle(halfedge_handle(e_handle, 0)));
+
+	if (abs(det) < 0.0001f)
+	{
+
+
+		Eigen::Vector4d V0((p1[0] + p2[0]) * 0.5f, (p1[1] + p2[1]) * 0.5f, (p1[2] + p2[2]) * 0.5f, 1);
+		Eigen::Vector4d V1(p1[0], p1[1], p1[2], 1);
+		Eigen::Vector4d V2(p2[0], p2[1], p2[2], 1);
+
+		float e0 = abs(V0.dot(Q * V0));
+		float e1 = abs(V1.dot(Q * V1));
+		float e2 = abs(V2.dot(Q * V2));
+
+		if (e0 > e1 && e0 > e2) {
+			V = V0;
+			e = e0;
+		}
+		else if (e1 > e2) {
+			V = V1;
+			e = e1;
+		}
+		else {
+			V = V2;
+			e = e2;
+		}
+	}
+	else
+	{
+		dQ = dQ.inverse();
+		V << dQ(0, 3), dQ(1, 3), dQ(2, 3);
+		e = abs(V.dot(Q * V));
+	}
+
+	this->property(prop_v, e_handle) = MyMesh::Point(V.x(), V.y(), V.z());
+	this->property(prop_e, e_handle) = e;
 }
 
 void MyMesh::computeError()
 {
-	this->add_property(new_Q, "new_Q");
-	this->add_property(new_v, "new_v");
-	this->add_property(epsilon, "epsilon");
+	this->add_property(prop_v, "prop_v");
+	this->add_property(prop_e, "prop_e"); 
 
 	for (MyMesh::EdgeIter e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it)
 	{
@@ -132,38 +151,111 @@ bool MyMesh::collapse()
 {
 	EdgeHandle e_handle;
 	float min = FLT_MAX;
-	for (MyMesh::EdgeIter e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it)
-	{
-		float e = this->property(epsilon, e_it);
-		if (e < min && !status(e_it).deleted() && is_collapse_ok(halfedge_handle(e_it, 0)))
+
+	bool found = false;
+
+	if (use_last) {
+		found = true;
+		e_handle = last_handle;
+		min = last_min;
+	}
+	else {
+		for (MyMesh::EdgeIter e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it)
 		{
-			min = e;
-			e_handle = e_it.handle();
+			if (!status(e_it).deleted()) {
+				float e = this->property(prop_e, e_it);
+				if (e < min)
+				{
+					HalfedgeHandle tmp_he_h = halfedge_handle(e_it, 0);
+					VertexHandle tmp_to = to_vertex_handle(tmp_he_h);
+
+					MyMesh::Point old_V = this->point(tmp_to);
+
+					MyMesh::Point tmp_V = this->property(prop_v, e_it);
+
+					set_point(tmp_to, tmp_V);
+					bool collapse_ok = is_collapse_ok(tmp_he_h);
+					set_point(tmp_to, old_V);
+
+					if (collapse_ok) {
+						found = true;
+						min = e;
+						e_handle = e_it;
+
+						if (min <= this->last_min) {
+							break;
+						}
+					}
+				}
+			}
 		}
 	}
 
-	if (min > 1.0)
+	if (!found) {
+		std::cout << "Break" << std::endl;
 		return false;
+	}
+
+	last_min = min;
 
 	//print error
-	std::cout << min << std::endl;
+	//std::cout << min << std::endl;
 
 	HalfedgeHandle he_handle = halfedge_handle(e_handle, 0);
 	VertexHandle to = to_vertex_handle(he_handle);
 
-	MyMesh::Point pp = this->property(new_v, e_handle);
-	glm::mat4 qq = this->property(new_Q, e_handle);
+	MyMesh::Point V = this->property(prop_v, e_handle);
+
+	set_point(to, V);
 
 	this->TriMesh::collapse(he_handle);
 
-	set_point(to, pp);
-	this->property(Q, to) = qq;
+	//garbage_collection();
 
-	//recompute neighbor edge
-	for (MyMesh::VertexEdgeIter ve_it = ve_iter(to); ve_it.is_valid(); ++ve_it)
+	//recompute quadrics & edge errors
+	std::set<MyMesh::EdgeHandle> recalc_edges;
+	this->computeErrorQuadrics(to);
+	for (MyMesh::VertexVertexIter vv_it = vv_iter(to); vv_it.is_valid(); ++vv_it)
 	{
-		computeError(ve_it.handle());
+		if (!status(vv_it).deleted()) {
+
+			this->computeErrorQuadrics(vv_it);
+
+			for (MyMesh::VertexEdgeIter ve_it = ve_iter(vv_it); ve_it.is_valid(); ++ve_it)
+			{
+				if (!status(ve_it).deleted()) {
+					recalc_edges.insert(ve_it);
+				}
+			}
+		}
 	}
+	for (MyMesh::EdgeHandle e_h : recalc_edges)
+	{
+		computeError(e_h);
+		float e = this->property(prop_e, e_h);
+		if (e <= last_min)
+		{
+			HalfedgeHandle tmp_he_h = halfedge_handle(e_h, 0);
+			VertexHandle tmp_to = to_vertex_handle(tmp_he_h);
+
+			MyMesh::Point old_V = this->point(tmp_to);
+
+			MyMesh::Point tmp_V = this->property(prop_v, e_h);
+
+			set_point(tmp_to, tmp_V);
+			bool collapse_ok = is_collapse_ok(tmp_he_h);
+			set_point(tmp_to, old_V);
+
+			if (collapse_ok) {
+				found = true;
+				last_min = e;
+				last_handle = e_h;
+			}
+		}
+
+	}
+
+
 	return true;
 }
 void MyMesh::record() 
@@ -189,16 +281,25 @@ void MyMesh::record()
 	record_indices.push_back(indices);
 }
 
+#include <time.h>
 void MyMesh::simplification()
 {
+	time_t total_s_time = 0;
+	time_t s_time = clock();
+
+	last_min = 0;
+	use_last = false;
+
 	if (record_vertices.empty())
 	{
 		int i = 0;
 		record();
-		for (int j = 0;j<100;j++)
+		for (int j = 0; j < 200;j++)
 		{
-			for (int k = 0; k < 500; k++)
+			int n = std::min(1499, (int)(n_edges() * 0.016)) + 1;
+			for (int k = 0; k < n; k++)
 			{
+				++i;
 				if (collapse() == false)
 				{
 					garbage_collection();
@@ -206,8 +307,14 @@ void MyMesh::simplification()
 					return;
 				}
 			}
+
 			garbage_collection();
 			record();
+
+			time_t e_time = clock();
+			total_s_time += e_time - s_time;
+			std::cout << j << " : " << n << ", "<< e_time - s_time << "ms , avg : " << total_s_time / float(i)<< "ms                \r";
+			s_time = e_time;
 		}
 	}
 }
@@ -271,7 +378,7 @@ bool GLMesh::LoadModel(std::string fileName)
 		{
 			mesh.request_face_normals();
 			mesh.update_normals();
-			mesh.release_face_normals();
+			//mesh.release_face_normals();
 
 			mesh.computeErrorQuadrics();
 			mesh.computeError();
