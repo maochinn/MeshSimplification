@@ -448,26 +448,27 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points, doubl
 	std::vector<Eigen::Triplet<double>> triplet_list_A, triplet_list_b;
 
 	std::map<VertexHandle, int> vertices;
-	std::vector<double> A0(N), At(N);
+	//std::vector<double> A0(N), At(N);
 	int idx(0);
 	for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it, ++idx)
 	{
 		vertices.insert(std::pair<VertexHandle, int>(v_it.handle(), idx));
-		//for (auto it = faces_begin(); it != faces_end(); ++it)
-		for (MyMesh::VertexFaceIter vf_it = vf_iter(v_it); vf_it.is_valid(); ++vf_it)
-		{
-			A0[idx] = At[idx] = calc_face_area(vf_it);
-		}
+		//A0[idx] = 0.0;
+		//for (MyMesh::VertexFaceIter vf_it = vf_iter(v_it); vf_it.is_valid(); ++vf_it)
+		//{
+		//	A0[idx] += calc_face_area(vf_it);
+		//}
+		//At[idx] = A0[idx];
 	}
 
 	//double W0_H = 1.0;
 	std::vector<double> W_H(N, W0_H);
 
 	double W_L(0.0);
-	for (auto it = faces_begin(); it != faces_end(); ++it)
-	{
-		W_L += calc_face_area(it);
-	}
+	//for (auto it = faces_begin(); it != faces_end(); ++it)
+	//{
+	//	W_L += calc_face_area(it);
+	//}
 	//W_L = 0.1 * sqrt(W_L/(double)n_faces());
 	W_L = W0_L;
 
@@ -548,15 +549,17 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points, doubl
 			set_point(it->first, MyMesh::Point(xx, yy, zz));
 		}
 
-		for (auto it = vertices.begin(); it != vertices.end(); it++)
-		{
-			for (MyMesh::VertexFaceIter vf_it = vf_iter(it->first); vf_it.is_valid(); ++vf_it)
-			{
-				At[idx] = calc_face_area(vf_it);
-			}
+		//for (auto it = vertices.begin(); it != vertices.end(); it++)
+		//{
+		//	int idx = it->second;
+		//	At[idx] = 0.0;
+		//	for (MyMesh::VertexFaceIter vf_it = vf_iter(it->first); vf_it.is_valid(); ++vf_it)
+		//	{
+		//		At[idx] += calc_face_area(vf_it);
+		//	}
 
-			W_H[idx] = W0_H/* * sqrt(A0[idx] / At[idx])*/;
-		}
+		//	W_H[idx] = W0_H/* * sqrt(A0[idx] / At[idx])*/;
+		//}
 	}
 
 	//
