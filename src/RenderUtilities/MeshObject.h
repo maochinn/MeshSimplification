@@ -3,9 +3,10 @@
 #include <string>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
-#include <glad\glad.h>
+#include <glad/glad.h>
 #include <queue>
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 # include "BufferObject.h"
 
@@ -24,6 +25,7 @@ public:
 	int FindVertex(MyMesh::Point pointToFind);
 	void ClearMesh();
 
+	// Simplification
 	void computeErrorQuadrics(MyMesh::VertexHandle);
 	void computeErrorQuadrics();
 
@@ -31,10 +33,15 @@ public:
 	void computeError();
 	
 	void simplification();
-
 	void record();
-
 	bool collapse();
+
+	// Least Square with random control points
+	void generateLeastSquareMesh(std::vector<MyMesh::Point>&, int);
+
+	// Skeleton extraction
+	double computeWeight(MyMesh::HalfedgeHandle&);
+	void degenerateLeastSquareMesh(std::vector<MyMesh::Point>&, double, double);
 private:
 
 	float last_min;
@@ -58,22 +65,19 @@ public:
 
 	void simplification(float);
 
-	void collispe();
-	void uncollispe();
+	bool exportSimplificationMesh(float);
+
+	void generateLeastSquareMesh(int);
+
+	void degenerateLeastSquareMesh();
 
 	int now_record_idx = 0;
-
+	
+private:
 	MyMesh mesh;
 	VAO vao;
-	//GLuint vao;
-	//GLuint ebo;
-	//GLuint vboVertices, vboNormal, vboTexCoord;
-
-	
-
-private:
 
 	bool LoadModel(std::string fileName);
-	void LoadToShader();
+	void LoadToShader(std::vector<MyMesh::Point>&, std::vector<MyMesh::Normal>&, std::vector<unsigned int>&);
 };
 

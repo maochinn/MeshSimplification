@@ -126,6 +126,10 @@ MyWindow(const int x, const int y)
 		testing->callback((Fl_Callback*)testingCB, this);
 		pty += 25;
 
+		Fl_Button* exportMesh = new Fl_Button(605, pty, 60, 20, "Export");
+		exportMesh->callback((Fl_Callback*)exportCB, this);
+		pty += 25;
+
 		//// roll the points
 		//Fl_Button* rx = new Fl_Button(605,pty,30,20,"R+X");
 		//rx->callback((Fl_Callback*)rpxCB,this);

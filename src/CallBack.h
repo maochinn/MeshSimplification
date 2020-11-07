@@ -72,7 +72,13 @@ void idleCB(MyWindow* mw)
 
 void testingCB(Fl_Widget*, MyWindow* mw)
 {
-	mw->myView->gl_mesh->simplification(0.5f);
+	mw->myView->gl_mesh->degenerateLeastSquareMesh();
+	mw->damageMe();
+}
+
+void exportCB(Fl_Widget*, MyWindow* mw)
+{
+	mw->myView->gl_mesh->exportSimplificationMesh(mw->simplification_slider->value());
 	mw->damageMe();
 }
 

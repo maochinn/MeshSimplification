@@ -44,25 +44,6 @@
 typedef OpenMesh::PolyMesh_ArrayKernelT<>  PolyMesh;
 
 
-clock_t current_ticks, delta_ticks;
-float fps = 0;
-
-//void IdleCallback(void* pData)
-//{
-//	if (pData != NULL)
-//	{
-//		current_ticks = clock();
-//
-//		MyView* trainview = reinterpret_cast<MyView*>(pData);
-//
-//		delta_ticks = clock() - current_ticks; //the time, in ms, that took to render the scene
-//		if (delta_ticks > 0)
-//			fps = CLOCKS_PER_SEC / (float)delta_ticks;
-//		//system("cls");
-//		//std::cout << "FPS:" << fps << std::endl;
-//	}
-//}
-
 //************************************************************************
 //
 // * Constructor to set up the GL window
@@ -90,7 +71,7 @@ resetArcball()
 	// Set up the camera to look at the world
 	// these parameters might seem magical, and they kindof are
 	// a little trial and error goes a long way
-	arcball.setup(this, 40, 250, .2f, .4f, 0);
+	arcball.setup(this, 40, 2.50, .2f, .4f, 0);
 }
 
 //************************************************************************
@@ -197,225 +178,9 @@ void MyView::draw()
 		if (!this->gl_mesh)
 		{
 			this->gl_mesh = new GLMesh();
-			this->gl_mesh->Init("../MeshSimplification/Models/neptune_200k_org.obj");
+			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_200k_org.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk.obj");
-
-			//useless testing code
-			{
-
-
-				//PolyMesh mesh;
-				//// Request required status flags
-				//mesh.request_vertex_status();
-				//mesh.request_edge_status();
-				//mesh.request_halfedge_status();
-				//mesh.request_face_status();
-				//// Add some vertices as in the illustration above
-				//PolyMesh::VertexHandle vhandle[7];
-				//vhandle[0] = mesh.add_vertex(MyMesh::Point(-1, 1, 0));
-				//vhandle[1] = mesh.add_vertex(MyMesh::Point(-1, 3, 0));
-				//vhandle[2] = mesh.add_vertex(MyMesh::Point(0, 0, 0));
-				//vhandle[3] = mesh.add_vertex(MyMesh::Point(0, 2, 0));
-				//vhandle[4] = mesh.add_vertex(MyMesh::Point(0, 4, 0));
-				//vhandle[5] = mesh.add_vertex(MyMesh::Point(1, 1, 0));
-				//vhandle[6] = mesh.add_vertex(MyMesh::Point(1, 3, 0));
-				//// Add three quad faces
-				//std::vector<PolyMesh::VertexHandle> face_vhandles;
-				//face_vhandles.push_back(vhandle[1]);
-				//face_vhandles.push_back(vhandle[0]);
-				//face_vhandles.push_back(vhandle[2]);
-				//face_vhandles.push_back(vhandle[3]);
-				//mesh.add_face(face_vhandles);
-				//face_vhandles.clear();
-				//face_vhandles.push_back(vhandle[1]);
-				//face_vhandles.push_back(vhandle[3]);
-				//face_vhandles.push_back(vhandle[6]);
-				//face_vhandles.push_back(vhandle[4]);
-				//mesh.add_face(face_vhandles);
-				//face_vhandles.clear();
-				//face_vhandles.push_back(vhandle[3]);
-				//face_vhandles.push_back(vhandle[2]);
-				//face_vhandles.push_back(vhandle[5]);
-				//face_vhandles.push_back(vhandle[6]);
-				//mesh.add_face(face_vhandles);
-				//// Now find the edge between vertex vhandle[2]
-				//// and vhandle[3]
-
-
-				////PolyMesh::HalfedgeHandle t23 = mesh.find_halfedge(vhandle[2], vhandle[3]);
-
-				////for (PolyMesh::FaceIter it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
-				////	std::cout << *it << std::endl;
-				////	for (PolyMesh::FaceVertexIter fv_it = mesh.fv_iter(it); fv_it.is_valid(); ++fv_it) {
-				////		std::cout << mesh.point(fv_it) << std::endl;
-				////	}
-				////}
-				////puts("");
-				////std::vector<PolyMesh::FaceHandle> vfs;
-				////for (PolyMesh::VertexFaceIter vf_it = mesh.vf_iter(vhandle[3]); vf_it.is_valid(); ++vf_it) {
-				////	std::cout << *vf_it << std::endl;
-				////	vfs.push_back(vf_it.handle());
-				////}
-				////for (PolyMesh::FaceHandle vf :vfs) {
-				////	puts("face");
-				////	for (PolyMesh::FaceVertexIter fv_it = mesh.fv_iter(vf); fv_it.is_valid(); ++fv_it) {
-				////		std::cout << mesh.point(fv_it) << std::endl;
-				////	}
-				////}
-
-				////
-				//std::vector<std::vector<PolyMesh::VertexHandle>> faces;
-				//std::vector<PolyMesh::FaceHandle> temps;
-				//for (PolyMesh::VertexFaceIter vf_it = mesh.vf_iter(vhandle[3]); vf_it.is_valid(); ++vf_it) {
-				//	std::vector<PolyMesh::VertexHandle> vs;
-				//	temps.push_back(vf_it.handle());
-				//	for (PolyMesh::FaceVertexIter fv_it = mesh.fv_iter(vf_it); fv_it.is_valid(); ++fv_it) {
-				//		vs.push_back(fv_it.handle());
-				//	}
-				//	faces.push_back(vs);
-				//}
-				//for (PolyMesh::VertexFaceIter vf_it = mesh.vf_iter(vhandle[2]); vf_it.is_valid(); ++vf_it) {
-				//	auto it = std::find(temps.begin(), temps.end(), vf_it.handle());
-				//	if (it == temps.end())
-				//	{
-				//		std::vector<PolyMesh::VertexHandle> vs;
-				//		for (PolyMesh::FaceVertexIter fv_it = mesh.fv_iter(vf_it); fv_it.is_valid(); ++fv_it) {
-				//			vs.push_back(fv_it.handle());
-				//		}
-				//		faces.push_back(vs);
-				//	}
-				//}
-				//for (auto verts : faces)
-				//{
-				//	puts("Face");
-				//	for (auto vert : verts)
-				//	{
-				//		std::cout << mesh.point(vert) << std::endl;
-				//	}
-				//}
-
-				//std::cout << mesh.n_vertices() << std::endl;
-				//std::cout << mesh.n_edges() << std::endl;
-				//std::cout << mesh.n_halfedges() << std::endl;
-				//std::cout << mesh.n_faces() << std::endl;
-
-				//for (PolyMesh::HalfedgeIter it = mesh.halfedges_begin(); it != mesh.halfedges_end(); ++it) {
-				//	if (mesh.to_vertex_handle(*it) == vhandle[3] &&
-				//		mesh.from_vertex_handle(*it) == vhandle[2])
-				//	{
-				//		// Collapse edge
-				//		mesh.collapse(*it);
-				//		break;
-				//	}
-				//}
-
-				////delete
-				//std::vector<PolyMesh::FaceHandle> delete_faces;
-				//
-				//for (PolyMesh::VertexFaceIter vf_it = mesh.vf_iter(vhandle[3]); vf_it.is_valid(); ++vf_it) {
-				//	delete_faces.push_back(vf_it);
-				//}
-				//for (auto df : delete_faces) {
-				//	puts("face");
-				//	for (PolyMesh::FaceVertexIter fv_it = mesh.fv_iter(df); fv_it.is_valid(); ++fv_it) {
-				//		std::cout << mesh.point(fv_it) << std::endl;
-				//	}
-				//	mesh.delete_face(df, false);
-				//}
-
-				////re-add
-				////mesh.add_vertex(mesh.point(vhandle[2]));
-				//bool temp = mesh.status(vhandle[2]).deleted();
-				//mesh.status(vhandle[2]).set_deleted(false);
-				//temp = mesh.status(vhandle[2]).deleted();
-				//for (auto verts : faces)
-				//{
-				//	puts("Face");
-				//	std::vector<PolyMesh::VertexHandle> face;
-				//	for (auto vert : verts)
-				//	{
-				//		face.push_back(vert);	
-				//		std::cout << mesh.point(vert) << std::endl;
-				//	}
-				//	mesh.add_face(face);
-				//}
-				//mesh.garbage_collection();
-				//std::cout << mesh.n_vertices() << std::endl;
-				//std::cout << mesh.n_edges() << std::endl;
-				//std::cout << mesh.n_halfedges() << std::endl;
-				//std::cout << mesh.n_faces() << std::endl;
-
-				////for (PolyMesh::VertexIter it = mesh.vertices_begin(); it != mesh.vertices_end(); ++it)
-				////{
-				////	std::cout << mesh.point(it) << std::endl;
-				////}
-
-				//for (PolyMesh::FaceIter it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
-				//	puts("face");
-				//	for (PolyMesh::FaceVertexIter fv_it = mesh.fv_iter(it); fv_it.is_valid(); ++fv_it) {
-				//		std::cout << mesh.point(fv_it) << std::endl;
-				//	}
-				//}
-				//puts("");
-				///*for (PolyMesh::FaceHandle vf : vfs) {
-				//	puts("face");
-				//	for (PolyMesh::FaceVertexIter fv_it = mesh.fv_iter(vf); fv_it.is_valid(); ++fv_it) {
-				//		std::cout << mesh.point(fv_it) << std::endl;
-				//	}
-				//}*/
-
-				////mesh.garbage_collection();
-				////std::cout << mesh.n_vertices() << std::endl;
-				////std::cout << mesh.n_edges() << std::endl;
-				////std::cout << mesh.n_halfedges() << std::endl;
-				////std::cout << mesh.n_faces() << std::endl;
-
-				////PolyMesh::HalfedgeHandle t53 = mesh.find_halfedge(vhandle[5], vhandle[3]);
-				////PolyMesh::HalfedgeHandle t56 = mesh.find_halfedge(vhandle[5], vhandle[6]);
-				////PolyMesh::HalfedgeHandle t65 = mesh.find_halfedge(vhandle[6], vhandle[5]);
-				////PolyMesh::FaceHandle f;
-
-				////for (PolyMesh::FaceIter it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
-				////	std::cout << *it << std::endl;
-				////	for (PolyMesh::FaceVertexIter fv_it = mesh.fv_iter(it); fv_it.is_valid(); ++fv_it) {
-				////		std::cout << mesh.point(fv_it) << std::endl;
-				////	}
-
-				//	//for (PolyMesh::FaceHalfedgeIter fh_it = mesh.fh_iter(it); fh_it.is_valid(); ++fh_it) {
-				//	//	if (fh_it.handle() == t56 || fh_it.handle() == t65)
-				//	//	{
-				//	//		f = it.handle();
-				//	//		std::cout << "Halfedge has handle " << *fh_it << std::endl;
-				//	//	}
-
-				//	//}
-				////}
-				//
-				////bool temp;
-				////temp = mesh.status(t23).deleted();
-				////temp = mesh.status(t53).deleted();
-				////temp = mesh.status(t56).deleted();
-				////temp = mesh.status(t65).deleted();
-				////temp = mesh.status(f).deleted();
-				////for (PolyMesh::HalfedgeIter it = mesh.halfedges_begin(); it != mesh.halfedges_end(); ++it) {
-				////	if (mesh.to_vertex_handle(*it) == vhandle[3] &&
-				////		mesh.from_vertex_handle(*it) == vhandle[5])
-				////	{
-				////		// Collapse edge
-				////		mesh.collapse(*it);
-				////		break;
-				////	}
-				////}
-				////temp = mesh.status(t53).deleted();
-				////temp = mesh.status(t56).deleted();
-				////temp = mesh.status(t65).deleted();
-				////temp = mesh.status(f).deleted();
-				////mesh.garbage_collection();
-				////std::cout << mesh.n_vertices() << std::endl;
-				////std::cout << mesh.n_edges() << std::endl;
-				////std::cout << mesh.n_halfedges() << std::endl;
-				////std::cout << mesh.n_faces() << std::endl;
-			}
+			this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk_normalize.obj");
 		}
 
 		if (!this->plane) {
@@ -504,93 +269,24 @@ void MyView::draw()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	glEnable(GL_DEPTH);
 
-	// Blayne prefers GL_DIFFUSE
-	glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
-
 	// prepare for projection
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	setProjection();		// put the code to set up matrices here
-
-	//######################################################################
-	// TODO: 
-	// you might want to set the lighting up differently. if you do, 
-	// we need to set up the lights AFTER setting up the projection
-	//######################################################################
-	// enable the lighting
-	glEnable(GL_COLOR_MATERIAL);
 	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_LIGHT0);
 
-	// top view only needs one light
-	if (mw->top_cam->value()) {
-		glDisable(GL_LIGHT1);
-		glDisable(GL_LIGHT2);
-	}
-	else {
-		glEnable(GL_LIGHT1);
-		glEnable(GL_LIGHT2);
-	}
-
-	//*********************************************************************
 	//
-	// * set the light parameters
-	//
-	//**********************************************************************
-	GLfloat lightPosition1[] = { 0,1,1,0 }; // {50, 200.0, 50, 1.0};
-	GLfloat lightPosition2[] = { 1, 0, 0, 0 };
-	GLfloat lightPosition3[] = { 0, -1, 0, 0 };
-	GLfloat yellowLight[] = { 0.5f, 0.5f, .1f, 1.0 };
-	GLfloat whiteLight[] = { 1.0f, 1.0f, 1.0f, 1.0 };
-	GLfloat blueLight[] = { .1f,.1f,.3f,1.0 };
-	GLfloat grayLight[] = { .3f, .3f, .3f, 1.0 };
-
-	glLightfv(GL_LIGHT0, GL_POSITION, lightPosition1);
-	glLightfv(GL_LIGHT0, GL_DIFFUSE, whiteLight);
-	glLightfv(GL_LIGHT0, GL_AMBIENT, grayLight);
-
-	glLightfv(GL_LIGHT1, GL_POSITION, lightPosition2);
-	glLightfv(GL_LIGHT1, GL_DIFFUSE, yellowLight);
-
-	glLightfv(GL_LIGHT2, GL_POSITION, lightPosition3);
-	glLightfv(GL_LIGHT2, GL_DIFFUSE, blueLight);
-
-
-
-	//*********************************************************************
-	// now draw the ground plane
-	//*********************************************************************
-	// set to opengl fixed pipeline(use opengl 1.x draw function)
-	glUseProgram(0);
-
-	setupFloor();
-	glDisable(GL_LIGHTING);
-	//drawFloor(200,10);
-
-
-	//*********************************************************************
-	// now draw the object and we need to do it twice
-	// once for real, and then once for shadows
-	//*********************************************************************
-	glEnable(GL_LIGHTING);
-
 	setUBO();
 	glBindBufferRange(GL_UNIFORM_BUFFER, /*binding point*/0, this->commom_matrices->ubo, 0, this->commom_matrices->size);
-
 
 	//bind shader
 	this->shader->Use();
 
 	glm::mat4 model_matrix = glm::mat4();
-	model_matrix = glm::scale(model_matrix, glm::vec3(0.1f, 0.1f, 0.1f));
-	model_matrix = glm::translate(model_matrix, glm::vec3(98.5175, 250.207, 1045.73));
 	glUniformMatrix4fv(glGetUniformLocation(this->shader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
-	glUniform3fv(glGetUniformLocation(this->shader->Program, "u_color"), 1, &glm::vec3(0.0f, 1.0f, 0.0f)[0]);
-	this->texture->bind(0);
-	//this->water->bindWaterTexture(0);
-	//this->pool->bindCausticTexture(0);
-	glUniform1i(glGetUniformLocation(this->shader->Program, "u_texture"), 0);
+	//glUniform3fv(glGetUniformLocation(this->shader->Program, "u_color"), 1, &glm::vec3(0.0f, 1.0f, 0.0f)[0]);
+	//this->texture->bind(0);
+	//glUniform1i(glGetUniformLocation(this->shader->Program, "u_texture"), 0);
 
 	////bind VAO
 	//glBindVertexArray(this->plane->vao);
@@ -600,13 +296,11 @@ void MyView::draw()
 	////unbind VAO
 	//glBindVertexArray(0);
 
-	glBindVertexArray(this->gl_mesh->vao.vao);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	this->gl_mesh->Render();
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	//unbind VAO
 	glBindVertexArray(0);
-
 
 	this->skybox->render();
 
