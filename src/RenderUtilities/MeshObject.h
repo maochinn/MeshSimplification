@@ -41,7 +41,7 @@ public:
 
 	// Skeleton extraction
 	double computeWeight(MyMesh::HalfedgeHandle&);
-	void degenerateLeastSquareMesh(std::vector<MyMesh::Point>&, double, double);
+	void degenerateLeastSquareMesh(std::vector<MyMesh::Point>&, double, double, double S_L = 20.0);
 private:
 
 	float last_min;

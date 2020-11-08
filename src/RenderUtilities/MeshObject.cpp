@@ -426,19 +426,21 @@ double MyMesh::computeWeight(MyMesh::HalfedgeHandle& heh)
 	MyMesh::Point p1 = point(opposite_vh(heh));
 	MyMesh::Point p2 = point(opposite_he_opposite_vh(heh));
 
-	OpenMesh::Vec3d v1 = (OpenMesh::Vec3d)(p1 - pFrom).normalize();
-	OpenMesh::Vec3d v2 = (OpenMesh::Vec3d)(p1 - pTo).normalize();
-	alpha = std::acos(clamp(OpenMesh::dot(v1, v2), -0.999, 0.999));
+	OpenMesh::Vec3d v1 = (OpenMesh::Vec3d)(p1 - pFrom); v1.normalize();
+	OpenMesh::Vec3d v2 = (OpenMesh::Vec3d)(p1 - pTo); v2.normalize();
+	alpha = std::acos(clamp(OpenMesh::dot(v1, v2), -0.9999, 0.9999));
 
-	v1 = (OpenMesh::Vec3d)(p2 - pFrom).normalize();
-	v2 = (OpenMesh::Vec3d)(p2 - pTo).normalize();
-	beta = std::acos(clamp(OpenMesh::dot(v1, v2), -0.999, 0.999));
+	v1 = (OpenMesh::Vec3d)(p2 - pFrom); v1.normalize();
+	v2 = (OpenMesh::Vec3d)(p2 - pTo); v2.normalize();
+	beta = std::acos(clamp(OpenMesh::dot(v1, v2), -0.9999, 0.9999));
+	
+	//weight = std::cos(alpha) / std::sin(alpha) + std::cos(beta) / std::sin(beta);
+	//assert(!isnan(weight));
+	//return weight;
 
-	weight = std::cos(alpha) / std::sin(alpha) + std::cos(beta) / std::sin(beta);
-	assert(!isnan(weight));
-	return weight;
+	return std::cos(alpha) / std::sin(alpha) + std::cos(beta) / std::sin(beta);
 }
-void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points, double W0_H, double W0_L)
+void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points,double W0_L, double W0_H, double S_L)
 {
 	const int N(n_vertices());
 
@@ -448,37 +450,38 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points, doubl
 	std::vector<Eigen::Triplet<double>> triplet_list_A, triplet_list_b;
 
 	std::map<VertexHandle, int> vertices;
-	//std::vector<double> A0(N), At(N);
-	int idx(0);
-	for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it, ++idx)
+	std::vector<double> A0(N), At(N);
 	{
-		vertices.insert(std::pair<VertexHandle, int>(v_it.handle(), idx));
-		//A0[idx] = 0.0;
-		//for (MyMesh::VertexFaceIter vf_it = vf_iter(v_it); vf_it.is_valid(); ++vf_it)
-		//{
-		//	A0[idx] += calc_face_area(vf_it);
-		//}
-		//At[idx] = A0[idx];
+		int idx(0);
+		for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it, ++idx)
+		{
+			vertices.insert(std::pair<VertexHandle, int>(v_it.handle(), idx));
+			A0[idx] = 0.0;
+			for (MyMesh::VertexFaceIter vf_it = vf_iter(v_it); vf_it.is_valid(); ++vf_it)
+			{
+				A0[idx] += calc_face_area(vf_it);
+			}
+			At[idx] = A0[idx];
+		}
 	}
 
-	//double W0_H = 1.0;
 	std::vector<double> W_H(N, W0_H);
 
 	double W_L(0.0);
-	//for (auto it = faces_begin(); it != faces_end(); ++it)
-	//{
-	//	W_L += calc_face_area(it);
-	//}
-	//W_L = 0.1 * sqrt(W_L/(double)n_faces());
-	W_L = W0_L;
+	for (auto it = faces_begin(); it != faces_end(); ++it)
+	{
+		W_L += calc_face_area(it);
+	}
+	W_L = W0_L * sqrt(W_L/(double)n_faces());
+	//W_L = W0_L;
 
-	for (int t(0); t < 1; t++)
+	for (int t(0); t < 10; t++)
 	{
 		for (auto it = vertices.begin(); it != vertices.end(); it++)
 		{
 			// Laplacian
-			int i = it->second;	//col
-			int j = it->second;	//row
+			int i = it->second;	//row
+			int j = it->second;	//col
 
 			double w_ij = 0.0;
 			for (MyMesh::VertexOHalfedgeIter voh_it = voh_iter(it->first); voh_it.is_valid(); ++voh_it)
@@ -486,40 +489,25 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points, doubl
 				double w_ik = computeWeight(voh_it.handle());
 				w_ij += -w_ik;
 			}
-			double temp = W_L * w_ij;
-			if (temp != temp)
-			{
-				puts("!!!");
-				std::cout << W_L << "*" << w_ij << std::endl;
-			}
-
-			triplet_list_A.push_back(Eigen::Triplet<double>(j, i, W_L * w_ij));
-
+			triplet_list_A.push_back(Eigen::Triplet<double>(i, j, W_L * w_ij));
 
 			for (MyMesh::VertexOHalfedgeIter voh_it = voh_iter(it->first); voh_it.is_valid(); ++voh_it)
 			{
-				i = vertices[to_vertex_handle(voh_it)];
+				j = vertices[to_vertex_handle(voh_it)];
 				w_ij = computeWeight(voh_it.handle());
-				triplet_list_A.push_back(Eigen::Triplet<double>(j, i, W_L * w_ij));
-
-				temp = W_L * w_ij;
-				if (temp != temp)
-				{
-					puts("???");
-					std::cout << W_L << "*" << w_ij << std::endl;
-				}
-
+				triplet_list_A.push_back(Eigen::Triplet<double>(i, j, W_L * w_ij));
 			}
 
 			// Constraint
 			i = it->second;
-			j = N + it->second;
-			triplet_list_A.push_back(Eigen::Triplet<double>(j, i, W_H[i]));
+			j = it->second;
+
+			triplet_list_A.push_back(Eigen::Triplet<double>(N + i, j, W_H[i]));
 
 			MyMesh::Point vi = point(it->first);
-			triplet_list_b.push_back(Eigen::Triplet<double>(j, 0, W_H[i] * vi[0]));
-			triplet_list_b.push_back(Eigen::Triplet<double>(j, 1, W_H[i] * vi[1]));
-			triplet_list_b.push_back(Eigen::Triplet<double>(j, 2, W_H[i] * vi[2]));
+			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[0]));
+			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 1, W_H[i] * vi[1]));
+			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 2, W_H[i] * vi[2]));
 		}
 
 		//fullfill A and b
@@ -535,42 +523,35 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points, doubl
 		std::cout << x.row(0).col(0).value() << std::endl;
 
 		//update
-		W_L *= 2.0;
+		W_L *= S_L;
 		for (auto it = vertices.begin(); it != vertices.end(); it++)
 		{
-			int idx = it->second;
-			float xx = x.row(idx).col(0).value();
-			float yy = x.row(idx).col(1).value();
-			float zz = x.row(idx).col(2).value();
-			//if (xx != xx || yy != yy || zz != zz)
-			//{
-			//	std::cout << xx << " " << yy << " " << zz << std::endl;
-			//}
+			int i = it->second;
+			float xx = x.row(i).col(0).value();
+			float yy = x.row(i).col(1).value();
+			float zz = x.row(i).col(2).value();
 			set_point(it->first, MyMesh::Point(xx, yy, zz));
 		}
 
-		//for (auto it = vertices.begin(); it != vertices.end(); it++)
-		//{
-		//	int idx = it->second;
-		//	At[idx] = 0.0;
-		//	for (MyMesh::VertexFaceIter vf_it = vf_iter(it->first); vf_it.is_valid(); ++vf_it)
-		//	{
-		//		At[idx] += calc_face_area(vf_it);
-		//	}
+		for (auto it = vertices.begin(); it != vertices.end(); it++)
+		{
+			int i = it->second;
+			At[i] = 0.0;
+			for (MyMesh::VertexFaceIter vf_it = vf_iter(it->first); vf_it.is_valid(); ++vf_it)
+			{
+				At[i] += calc_face_area(vf_it);
+			}
 
-		//	W_H[idx] = W0_H/* * sqrt(A0[idx] / At[idx])*/;
-		//}
+			W_H[i] = W0_H * /*sqrt*/pow(A0[i] / At[i], 12.0);
+		}
 	}
 
-	//
+	// set
 	points.reserve(N);
 	for (auto it = vertices.begin(); it != vertices.end(); it++)
 	{
-		int idx = it->second;
-		//points[idx][0] = x.row(idx).col(0).value();
-		//points[idx][1] = x.row(idx).col(1).value();
-		//points[idx][2] = x.row(idx).col(2).value();
-		points[idx] = point(it->first);
+		int i = it->second;
+		points[i] = point(it->first);
 	}
 }
 
@@ -803,7 +784,7 @@ void GLMesh::degenerateLeastSquareMesh()
 		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
 			indices.push_back(fv_it->idx());
 
-	mesh.degenerateLeastSquareMesh(vertices, 1.0, 10.0);
+	mesh.degenerateLeastSquareMesh(vertices, 10.0, 1.0);
 
 	LoadToShader(vertices, normals, indices);
 }
