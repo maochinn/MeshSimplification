@@ -19,6 +19,8 @@ public:
 	std::vector<std::vector<MyMesh::Normal>> record_normals;
 	std::vector<std::vector<unsigned int>> record_indices;
 
+	std::vector<std::vector<MyMesh::Point>> degeneration_vertices;
+
 	MyMesh();
 	~MyMesh();
 
@@ -41,7 +43,7 @@ public:
 
 	// Skeleton extraction
 	double computeWeight(MyMesh::HalfedgeHandle&);
-	void degenerateLeastSquareMesh(std::vector<MyMesh::Point>&, double, double, double S_L = 20.0);
+	void degenerateLeastSquareMesh(std::vector<MyMesh::Point>&, double, double, double S_L = 5.0);
 private:
 
 	float last_min;
@@ -69,7 +71,7 @@ public:
 
 	void generateLeastSquareMesh(int);
 
-	void degenerateLeastSquareMesh();
+	void degenerateLeastSquareMesh(float);
 
 	int now_record_idx = 0;
 	

@@ -72,7 +72,7 @@ void idleCB(MyWindow* mw)
 
 void testingCB(Fl_Widget*, MyWindow* mw)
 {
-	mw->myView->gl_mesh->degenerateLeastSquareMesh();
+	mw->myView->gl_mesh->degenerateLeastSquareMesh(0.5f);
 	mw->damageMe();
 }
 
@@ -87,6 +87,13 @@ void simplificationCB(Fl_Widget*, MyWindow* mw)
 	mw->myView->gl_mesh->simplification(mw->simplification_slider->value());
 	mw->damageMe();
 }
+
+void degenerationCB(Fl_Widget*, MyWindow* mw)
+{
+	mw->myView->gl_mesh->degenerateLeastSquareMesh(mw->degeneration_slider->value());
+	mw->damageMe();
+}
+
 
 //void doCB(Fl_Widget*, MyWindow* mw)
 //{

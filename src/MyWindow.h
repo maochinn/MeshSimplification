@@ -78,5 +78,6 @@ public:
 
 	Fl_Browser* simplification_browser;
 	Fl_Value_Slider* simplification_slider;
+	Fl_Value_Slider* degeneration_slider;
 
 };
