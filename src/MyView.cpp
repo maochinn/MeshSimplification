@@ -181,11 +181,11 @@ void MyView::draw()
 			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_200k_org.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_100k_hk_normalize.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk.obj");
-			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk_normalize.obj");
+			this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk_normalize.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/dancer_25k_org.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/sphere.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/Cube.obj");
-			this->gl_mesh->Init("D:/maochinn/NTUST/Course/DigitalMesh/project/build/output.obj");
+			//this->gl_mesh->Init("D:/maochinn/NTUST/Course/DigitalMesh/project/build/output.obj");
 		}
 
 		if (!this->plane) {
@@ -288,8 +288,8 @@ void MyView::draw()
 	this->shader->Use();
 
 	glm::mat4 model_matrix = glm::mat4();
-	model_matrix = glm::scale(model_matrix, glm::vec3(0.1f, 0.1f, 0.1f));
-	model_matrix = glm::translate(model_matrix, glm::vec3(98.5175, 250.207, 1045.73));
+	//model_matrix = glm::scale(model_matrix, glm::vec3(0.1f, 0.1f, 0.1f));
+	//model_matrix = glm::translate(model_matrix, glm::vec3(98.5175, 250.207, 1045.73));
 	//model_matrix = glm::translate(model_matrix, glm::vec3(8.43839f, 1001.16f, -48.2004f));
 	glUniformMatrix4fv(glGetUniformLocation(this->shader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
 	//glUniform3fv(glGetUniformLocation(this->shader->Program, "u_color"), 1, &glm::vec3(0.0f, 1.0f, 0.0f)[0]);

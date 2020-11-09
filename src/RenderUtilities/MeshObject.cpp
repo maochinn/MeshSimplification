@@ -418,6 +418,11 @@ void MyMesh::generateLeastSquareMesh(std::vector<MyMesh::Point>& points, int con
 	}
 }
 
+inline double cot(Eigen::Vector3d v, Eigen::Vector3d w) {
+	if (v == w)
+		return FLT_MAX;
+	return(v.dot(w) / v.cross(w).norm());
+};
 double MyMesh::computeWeight(MyMesh::HalfedgeHandle& heh)
 {
 	GLdouble alpha, beta, weight;
@@ -430,16 +435,21 @@ double MyMesh::computeWeight(MyMesh::HalfedgeHandle& heh)
 	OpenMesh::Vec3d v2 = (OpenMesh::Vec3d)(p1 - pTo); v2.normalize();
 	alpha = std::acos(clamp(OpenMesh::dot(v1, v2), -1.0, 1.0));
 
+	Eigen::Vector3d v_1(v1[0], v1[1], v1[2]);
+	Eigen::Vector3d v_2(v2[0], v2[1], v2[2]);
+
 	v1 = (OpenMesh::Vec3d)(p2 - pFrom); v1.normalize();
 	v2 = (OpenMesh::Vec3d)(p2 - pTo); v2.normalize();
 	beta = std::acos(clamp(OpenMesh::dot(v1, v2), -1.0, 1.0));
+
+	Eigen::Vector3d v_3(v1[0], v1[1], v1[2]);
+	Eigen::Vector3d v_4(v2[0], v2[1], v2[2]);
+
+	//if (std::sin(alpha) == 0 || std::sin(beta) == 0)
+		//	return FLT_MAX;
+		//return std::cos(alpha) / std::sin(alpha) + std::cos(beta) / std::sin(beta);
 	
-	//weight = std::cos(alpha) / std::sin(alpha) + std::cos(beta) / std::sin(beta);
-	//assert(!isnan(weight));
-	//return weight;
-	if (std::sin(alpha) == 0 || std::sin(beta) == 0)
-		return FLT_MAX;
-	return std::cos(alpha) / std::sin(alpha) + std::cos(beta) / std::sin(beta);
+	return cot(v_1, v_2) + cot(v_3, v_4);
 }
 void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points,double W0_L, double W0_H, double S_L)
 {
@@ -471,7 +481,7 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points,double
 	W_L = W0_L * sqrt(W_L/(double)n_faces());
 	//W_L = W0_L;
 
-	for (int t(0); t < 5; t++)
+	for (int t(0); t < 20; t++)
 	{
 		std::vector<MyMesh::Point> degeneration_points;
 		degeneration_points.resize(N);
@@ -480,9 +490,9 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points,double
 		Eigen::SparseMatrix<double> A(N + N, N);
 		Eigen::SparseMatrix<double> b(N + N, 3);
 
-		Eigen::VectorXd bx(N + N, 1); bx.setZero();
-		Eigen::VectorXd by(N + N, 1); by.setZero();
-		Eigen::VectorXd bz(N + N, 1); bz.setZero();
+		//Eigen::VectorXd bx(N + N, 1); bx.setZero();
+		//Eigen::VectorXd by(N + N, 1); by.setZero();
+		//Eigen::VectorXd bz(N + N, 1); bz.setZero();
 		std::vector<Eigen::Triplet<double>> triplet_list_A, triplet_list_b, triplet_list_bx, triplet_list_by, triplet_list_bz;
 	
 		for (auto it = vertices.begin(); it != vertices.end(); it++)
@@ -510,17 +520,17 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points,double
 			triplet_list_A.push_back(Eigen::Triplet<double>(N + i, j, W_H[i]));
 
 			MyMesh::Point vi = point(it->first);
-			//triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[0]));
-			//triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 1, W_H[i] * vi[1]));
-			//triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 2, W_H[i] * vi[2]));
+			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[0]));
+			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 1, W_H[i] * vi[1]));
+			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 2, W_H[i] * vi[2]));
 
 			//triplet_list_bx.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[0]));
 			//triplet_list_by.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[1]));
 			//triplet_list_bz.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[2]));
 
-			bx(N + i, 0) = W_H[i] * vi[0];
-			by(N + i, 0) = W_H[i] * vi[1];
-			bz(N + i, 0) = W_H[i] * vi[2];
+			//bx(N + i, 0) = W_H[i] * vi[0];
+			//by(N + i, 0) = W_H[i] * vi[1];
+			//bz(N + i, 0) = W_H[i] * vi[2];
 		}
 		//fullfill A and b
 		A.setFromTriplets(triplet_list_A.begin(), triplet_list_A.end());
@@ -533,45 +543,45 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points,double
 		//std::cout << A << std::endl;
 		//std::cout << bx << std::endl;
 
-		//Eigen::SparseMatrix<double> ATA = A.transpose() * A;
-		////Eigen::SparseMatrix<double> ATb = A.transpose() * b;
+		Eigen::SparseMatrix<double> ATA = A.transpose() * A;
+		Eigen::SparseMatrix<double> ATb = A.transpose() * b;
 		//Eigen::SparseMatrix<double> ATbx = A.transpose() * bx;
 		//Eigen::SparseMatrix<double> ATby = A.transpose() * by;
 		//Eigen::SparseMatrix<double> ATbz = A.transpose() * bz;
 
 		////
-		////Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver(ATA);
+		Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver(ATA);
 		//Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver(ATA);
-		////Eigen::MatrixXd x = solver.solve(ATb);
+		Eigen::MatrixXd x = solver.solve(ATb);
 		//Eigen::VectorXd newx = solver.solve(ATbx);
 		//Eigen::VectorXd newy = solver.solve(ATby);
 		//Eigen::VectorXd newz = solver.solve(ATbz);
 
-		Eigen::SparseQR <Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int> > solver;
-		std::cout << "SetOver" << std::endl;
-		A.makeCompressed();
-		std::cout << "CompressedOver" << std::endl;
-		solver.compute(A);
-		std::cout << "computed" << std::endl;
+		//Eigen::SparseQR <Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int> > solver;
+		//std::cout << "SetOver" << std::endl;
+		//A.makeCompressed();
+		//std::cout << "CompressedOver" << std::endl;
+		//solver.compute(A);
+		//std::cout << "computed" << std::endl;
 		//Eigen::MatrixXd x = solver.solve(b);
-		Eigen::VectorXd newx = solver.solve(bx);
-		Eigen::VectorXd newy = solver.solve(by);
-		Eigen::VectorXd newz = solver.solve(bz);
+		//Eigen::VectorXd newx = solver.solve(bx);
+		//Eigen::VectorXd newy = solver.solve(by);
+		//Eigen::VectorXd newz = solver.solve(bz);
 
-		std::cout << newx(0, 0) << std::endl;
+		std::cout << x(0, 0) << std::endl;
 
 		//update
 		W_L *= S_L;
 		for (auto it = vertices.begin(); it != vertices.end(); it++)
 		{
 			int i = it->second;
-			//float xx = x(i, 0);
-			//float yy = x(i, 1);
-			//float zz = x(i, 2);
+			float xx = x(i, 0);
+			float yy = x(i, 1);
+			float zz = x(i, 2);
 
-			float xx = newx(i, 0);
-			float yy = newy(i, 0);
-			float zz = newz(i, 0);
+			//float xx = newx(i, 0);
+			//float yy = newy(i, 0);
+			//float zz = newz(i, 0);
 			set_point(it->first, MyMesh::Point(xx, yy, zz));
 
 			degeneration_points[i] = MyMesh::Point(xx, yy, zz);
@@ -586,8 +596,8 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<MyMesh::Point>& points,double
 				At[i] += calc_face_area(vf_it);
 			}
 
-			//W_H[i] = W0_H * /*sqrt*/pow(A0[i] / At[i], 12.0);
-			W_H[i] = W0_H * sqrt(A0[i] / At[i]);
+			W_H[i] = W0_H * pow(A0[i] / At[i], 2.0);
+			//W_H[i] = W0_H * sqrt(A0[i] / At[i]);
 		}
 
 		this->degeneration_vertices.push_back(degeneration_points);
