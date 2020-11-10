@@ -35,6 +35,7 @@
 #include <Fl/Fl_Group.H>
 #include <Fl/Fl_Value_Slider.H>
 #include <Fl/Fl_Browser.H>
+#include <FL/Fl_Value_Input.H>
 #pragma warning(pop)
 
 // we need to know what is in the world to show
@@ -81,5 +82,9 @@ public:
 	Fl_Value_Slider* simplification_slider;
 	Fl_Value_Slider* degeneration_slider;
 	Fl_Value_Slider* degeneration_simplify_slider;
+
+	Fl_Value_Input* WL0;
+	Fl_Value_Input* WH0;
+	Fl_Value_Input* SL;
 
 };

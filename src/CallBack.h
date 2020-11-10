@@ -76,6 +76,16 @@ void idleCB(MyWindow* mw)
 //	mw->damageMe();
 //}
 
+void importCB(Fl_Widget*, MyWindow* mw)
+{
+	const char* fname =
+		fl_file_chooser("Pick a OBJ File", "*.obj", "../MeshSimplification/Models/neptune_50k_hk_normalize.obj");
+	if (fname) {
+		mw->myView->gl_mesh->Init(fname);
+		mw->damageMe();
+	}
+}
+
 void exportCB(Fl_Widget*, MyWindow* mw)
 {
 	mw->myView->gl_mesh->exportMesh();
@@ -101,7 +111,10 @@ void simplificationSlideCB(Fl_Widget*, MyWindow* mw)
 
 void degenerationCB(Fl_Widget*, MyWindow* mw)
 {
-	mw->myView->gl_mesh->degenerateLeastSquareMesh();
+	mw->myView->gl_mesh->degenerateLeastSquareMesh(
+		mw->WL0->value(),
+		mw->WH0->value(),
+		mw->SL->value());
 	mw->damageMe();
 }
 void degenerationSlideCB(Fl_Widget*, MyWindow* mw)

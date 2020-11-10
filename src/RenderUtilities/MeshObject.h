@@ -112,7 +112,7 @@ public:
 
 	void generateLeastSquareMesh(int);
 
-	void degenerateLeastSquareMesh();
+	void degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L);
 	void degenerateLeastSquareMesh(float);
 	void degenerationMeshToLine();
 	void degenerationMeshToLine(float);
