@@ -43,7 +43,28 @@ public:
 
 	// Skeleton extraction
 	double computeWeight(MyMesh::HalfedgeHandle&);
-	void degenerateLeastSquareMesh(std::vector<MyMesh::Point>&, double, double, double S_L = 5.0);
+	void degenerateLeastSquareMesh(double, double, double S_L = 5.0, int iterations = 20);
+
+	// Skeleton extraction sec 5
+	struct SKHalfedge {
+		VertexHandle from;
+		VertexHandle to;
+		float cost;
+		SKHalfedge(VertexHandle, VertexHandle, float c = 0);
+	};
+	struct SKFace {
+		VertexHandle from;
+		VertexHandle to[2];
+	};
+	void degenerationMeshToLine(std::map<VertexHandle, std::vector<SKHalfedge>>&);
+	bool collapseToLine(std::vector<VertexHandle>& ,std::map<VertexHandle, std::vector<SKHalfedge>>&, std::map<VertexHandle, std::vector<SKFace>>& of_map);
+	void initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfedge>>&, MyMesh::VertexHandle);
+	void computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>>& ,MyMesh::VertexHandle);
+	void computeSKEdgeCost(std::vector<SKHalfedge>::iterator);
+	bool edge_is_collapse_ok(std::map<VertexHandle, std::vector<SKFace>>& of_map, std::map<VertexHandle, std::vector<SKHalfedge>>& ,std::vector<SKHalfedge>::iterator);
+	bool edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map, std::map<VertexHandle, std::vector<SKHalfedge>>&, std::vector<SKHalfedge>::iterator);
+	
+
 private:
 
 	float last_min;
@@ -53,6 +74,10 @@ private:
 	OpenMesh::VPropHandleT<Eigen::Matrix4d> prop_Q;
 	OpenMesh::EPropHandleT<MyMesh::Point> prop_v;
 	OpenMesh::EPropHandleT<float> prop_e;
+
+	OpenMesh::VPropHandleT<float> prop_sk_ve;
+	OpenMesh::VPropHandleT<float> prop_sk_vl;
+	OpenMesh::VPropHandleT<Eigen::Matrix4d> prop_sk_vQ;
 };
 
 class GLMesh
@@ -69,17 +94,21 @@ public:
 
 	bool exportSimplificationMesh(float);
 
+
 	void generateLeastSquareMesh(int);
 
 	void degenerateLeastSquareMesh(float);
+	void degenerationMeshToLine(float);
 
 	int now_record_idx = 0;
+
+	int render_mode = 0;
 	
 private:
 	MyMesh mesh;
 	VAO vao;
 
 	bool LoadModel(std::string fileName);
-	void LoadToShader(std::vector<MyMesh::Point>&, std::vector<MyMesh::Normal>&, std::vector<unsigned int>&);
+	void LoadToShader(std::vector<MyMesh::Point>&, std::vector<MyMesh::Normal>&, std::vector<unsigned int>&, int mode = 0);
 };
 

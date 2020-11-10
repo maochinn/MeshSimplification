@@ -72,7 +72,7 @@ void idleCB(MyWindow* mw)
 
 void testingCB(Fl_Widget*, MyWindow* mw)
 {
-	mw->myView->gl_mesh->degenerateLeastSquareMesh(0.5f);
+	mw->myView->gl_mesh->degenerationMeshToLine(mw->degeneration_slider->value());
 	mw->damageMe();
 }
 
