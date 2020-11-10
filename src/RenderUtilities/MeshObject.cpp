@@ -594,21 +594,14 @@ void MyMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L, int
 
 void MyMesh::degenerationMeshToLine()
 {
-	add_property(prop_sk_ve, "prop_sk_ve");// vertex error
 	add_property(prop_sk_vl, "prop_sk_vl");// vertex adjacent len
 	add_property(prop_sk_vQ, "prop_sk_vQ");//
 
 	std::vector<MyMesh::VertexHandle> sk_vertices;
 	std::map<MyMesh::VertexHandle, std::vector<MyMesh::SKHalfedge>> outHalfedges;
 	std::map< MyMesh::VertexHandle, std::vector<SKFace>> outFaces;
-	inv_avg_length = 0;
-	for (MyMesh::EdgeIter e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it) {
-		float length = this->calc_edge_length(e_it);
-		inv_avg_length += length;
-	}
-	inv_avg_length = (float)n_edges() / inv_avg_length;
 
-	std::cout << inv_avg_length << std::endl;
+	sk_face_count = 0;
 
 	for (MyMesh::VertexIter v_it = this->vertices_begin(); v_it != this->vertices_end(); ++v_it) {
 		sk_vertices.push_back(v_it);
@@ -636,6 +629,7 @@ void MyMesh::degenerationMeshToLine()
 				}
 			}
 			faces.push_back(tmpFace);
+			sk_face_count += 1;
 		}
 	}
 
@@ -664,6 +658,7 @@ void MyMesh::degenerationMeshToLine()
 			if (collapseToLine(sk_vertices, outHalfedges, outFaces) == false)
 			{
 				j = n + 1;
+				std::cout << "\nBBB!!!\n";
 				break;
 			}
 		}
@@ -688,7 +683,7 @@ void MyMesh::degenerationMeshToLine()
 	for (auto& ofaces : outFaces) {
 		count += ofaces.second.size();
 	}
-	std::cout << "\n faces: " << count << std::endl;
+	std::cout << "\n faces: " << sk_face_count  << " "<< count << std::endl;
 }
 
 bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices, 
@@ -696,8 +691,8 @@ bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices,
 {
 	std::vector<SKHalfedge>::iterator sk_he_it;
 	std::vector<VertexHandle>::iterator sk_v_it;
-	float min = FLT_MAX;
 
+	double min = std::numeric_limits<double>::infinity();
 	bool found = false;
 
 	for (auto v_it = sk_vertices.begin(); v_it != sk_vertices.end() && !found; ++v_it) {
@@ -737,15 +732,16 @@ bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices,
 	sk_vertices.erase(sk_v_it);
 
 	//recompute quadrics & edge errors
-	this->property(prop_sk_vQ, to) = this->property(prop_sk_vQ, to) + this->property(prop_sk_vQ, from);
+	this->property(prop_sk_vQ, to) = (this->property(prop_sk_vQ, to) + this->property(prop_sk_vQ, from));;
 
 	computeSKVertexError(ohe_map, to);
 	std::vector<SKHalfedge>& halfedges = ohe_map[to];
 	for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
 		computeSKVertexError(ohe_map, he_it->to);
 
-		std::vector<SKHalfedge>& to_halfedges = ohe_map[he_it->to];
+		computeSKEdgeCost(he_it);
 
+		std::vector<SKHalfedge>& to_halfedges = ohe_map[he_it->to];
 		for (auto to_he_it = to_halfedges.begin(); to_he_it != to_halfedges.end(); ++to_he_it)
 		{
 			computeSKEdgeCost(to_he_it);
@@ -755,22 +751,10 @@ bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices,
 			{
 				last_min = cost;
 			}
-
-			std::vector<SKHalfedge>& to_to_halfedges = ohe_map[to_he_it->to];
-			for (auto to_to_he_it = to_to_halfedges.begin(); to_to_he_it != to_to_halfedges.end(); ++to_to_he_it)
-			{
-				computeSKEdgeCost(to_to_he_it);
-				float cost = to_to_he_it->cost;
-
-				if (cost < last_min)
-				{
-					last_min = cost;
-				}
-			}
 		}
 	}
 
-	return true;
+	return sk_face_count > 0;
 }
 
 void MyMesh::initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, MyMesh::VertexHandle v_h)
@@ -791,7 +775,7 @@ void MyMesh::initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfe
 		VertexHandle v_h1 = to_vertex_handle(voh_it);
 
 		Point p1 = point(v_h1);
-		Eigen::Vector3d a(p1[0] - p[0], p1[1] - p[1], p1[2] - p[2]);
+		Eigen::Vector3d a((double)p1[0] - p[0], (double)p1[1] - p[1], (double)p1[2] - p[2]);
 		a.normalize();
 		Eigen::Vector3d b = a.cross(v);
 
@@ -799,7 +783,7 @@ void MyMesh::initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfe
 			a[2], 0, -a[0], -b[1], \
 			- a[1], a[0], 0, -b[2];
 
-		Q += K.transpose() * K;
+		Q += (K.transpose() * K);
 
 		halfedges.push_back(SKHalfedge(v_h, v_h1, 0));
 	}
@@ -810,38 +794,41 @@ void MyMesh::initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfe
 void MyMesh::computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, MyMesh::VertexHandle v_h)
 {
 	Point p = point(v_h);
-	Eigen::Vector4d v(p[0], p[1], p[2], 1);
-
-	Eigen::Matrix4d& Q = this->property(prop_sk_vQ, v_h);
-
-	float error = abs(v.dot(Q * v));
-	float adj = 0;
+	double adj = 0;
 
 	std::vector<SKHalfedge>& halfedges = ohe_map[v_h];
 	for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-		if (!status(he_it->to).deleted()) {
-			adj += (p - point(he_it->to)).length();
-		}
+		Point p01 = (p - point(he_it->to));
+		adj += sqrt((double)p01[0] * (double)p01[0] + (double)p01[1] * (double)p01[1] + (double)p01[2] * (double)p01[2]);
 	}
 
-	this->property(prop_sk_ve, v_h) = error;
 	this->property(prop_sk_vl, v_h) = adj;
 }
 
 void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 {
-	const float w_a = 1.0;
-	const float w_b = 10;
+	const double w_a = 1000.0;
+	const double w_b = 100.0;
 
 	VertexHandle v_h0 = sk_he_it->from; // from
 	VertexHandle v_h1 = sk_he_it->to; // to
 
-	float Fa = this->property(prop_sk_ve, v_h0) + this->property(prop_sk_ve, v_h1);
 
-	float adj_distance = property(prop_sk_vl, v_h0);
+	Eigen::Matrix4d& Q0 = this->property(prop_sk_vQ, v_h0);
+	Eigen::Matrix4d& Q1 = this->property(prop_sk_vQ, v_h1);
 
-	float length = (point(v_h0) - point(v_h1)).length();
-	float Fb = inv_avg_length * length * adj_distance;
+	Point p0 = point(v_h0);
+	Point p1 = point(v_h1);
+
+	Eigen::Vector4d v1(p1[0], p1[1], p1[2], 1);
+
+	double Fa = abs(v1.dot(Q0 * v1)) + abs(v1.dot(Q1 * v1));
+
+	double adj_distance = property(prop_sk_vl, v_h0);
+
+	Point p01 = (p1 - p0);
+	double length = sqrt((double)p01[0] * (double)p01[0] + (double)p01[1] * (double)p01[1] + (double)p01[2] * (double)p01[2]);
+	double Fb = length * adj_distance;
 
 	sk_he_it->cost = w_a * Fa + w_b * Fb;
 }
@@ -849,7 +836,38 @@ void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 bool MyMesh::edge_is_collapse_ok(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 	std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, std::vector<SKHalfedge>::iterator sk_he_it)
 {
-	return (of_map[sk_he_it->from].size() > 0 && of_map[sk_he_it->to].size() > 0);
+	std::vector<SKHalfedge>& halfedges0 = ohe_map[sk_he_it->from];
+	std::vector<SKHalfedge>& halfedges1 = ohe_map[sk_he_it->to];
+
+	std::vector<SKFace>& outFaces0 = of_map[sk_he_it->from];
+	std::vector<SKFace>& outFaces1 = of_map[sk_he_it->to];
+	return (outFaces0.size() > 0 && outFaces1.size() > 0);
+
+	for (auto he_it0 = halfedges0.begin(); he_it0 != halfedges0.end(); ++he_it0) {
+		for (auto he_it1 = halfedges1.begin(); he_it1 != halfedges1.end(); ++he_it1) {
+
+			if (he_it0->to == he_it1->to) {
+
+				std::vector<SKFace>& outFaces = of_map[he_it0->to];
+
+				bool found = false;
+				for (auto of_it = outFaces.begin(); of_it != outFaces.end(); ++of_it) {
+					if (((of_it->to[0] == sk_he_it->from) && (of_it->to[1] == sk_he_it->to)) ||
+						((of_it->to[1] == sk_he_it->from) && (of_it->to[0] == sk_he_it->to))) {
+						found = true;
+						break;
+					}
+				}
+
+				if (!found)
+					return false;
+
+			}
+
+		}
+	}
+
+	return (outFaces0.size() > 0 && outFaces1.size() > 0);
 }
 
 bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
@@ -909,6 +927,7 @@ bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 			for (auto t_of_it = outfaces0_i.begin(); t_of_it != outfaces0_i.end();) {
 				if (t_of_it->to[0] == v_h0 || t_of_it->to[1] == v_h0) {
 					t_of_it = outfaces0_i.erase(t_of_it);
+					sk_face_count -= 1;
 				}
 				else {
 					++t_of_it;
@@ -926,18 +945,23 @@ bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 			tmpFace.to[0] = of_it0->to[0];
 			tmpFace.to[1] = of_it0->to[1];
 			outfaces1.push_back(tmpFace);
+			sk_face_count += 1;
 
 			tmpFace.from = of_it0->to[0];
 			tmpFace.to[0] = of_it0->to[1];
 			tmpFace.to[1] = v_h1; 
 			outfaces0_0.push_back(tmpFace);
+			sk_face_count += 1;
 
 			tmpFace.from = of_it0->to[1];
 			tmpFace.to[0] = v_h1;
 			tmpFace.to[1] = of_it0->to[0];
 			outfaces0_1.push_back(tmpFace);
+			sk_face_count += 1;
 		}
 	}
+
+	sk_face_count -= outfaces0.size();
 	of_map.erase(v0_of_iter);
 
 	return false;

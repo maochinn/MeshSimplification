@@ -68,19 +68,17 @@ public:
 	
 
 private:
-
-	float inv_avg_length;
-
-	float last_min;
+	double last_min;
 	bool use_last;
+
+	int sk_face_count;
 	MyMesh::EdgeHandle last_handle;
 
 	OpenMesh::VPropHandleT<Eigen::Matrix4d> prop_Q;
 	OpenMesh::EPropHandleT<MyMesh::Point> prop_v;
 	OpenMesh::EPropHandleT<float> prop_e;
 
-	OpenMesh::VPropHandleT<float> prop_sk_ve;
-	OpenMesh::VPropHandleT<float> prop_sk_vl;
+	OpenMesh::VPropHandleT<double> prop_sk_vl;
 	OpenMesh::VPropHandleT<Eigen::Matrix4d> prop_sk_vQ;
 };
 
