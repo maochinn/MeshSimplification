@@ -21,6 +21,8 @@ public:
 
 	std::vector<std::vector<MyMesh::Point>> degeneration_vertices;
 
+	std::vector<std::vector<unsigned int>> degeneration_indices;
+
 	MyMesh();
 	~MyMesh();
 
@@ -56,7 +58,7 @@ public:
 		VertexHandle from;
 		VertexHandle to[2];
 	};
-	void degenerationMeshToLine(std::map<VertexHandle, std::vector<SKHalfedge>>&);
+	void degenerationMeshToLine();
 	bool collapseToLine(std::vector<VertexHandle>& ,std::map<VertexHandle, std::vector<SKHalfedge>>&, std::map<VertexHandle, std::vector<SKFace>>& of_map);
 	void initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfedge>>&, MyMesh::VertexHandle);
 	void computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>>& ,MyMesh::VertexHandle);
@@ -66,6 +68,8 @@ public:
 	
 
 private:
+
+	float inv_avg_length;
 
 	float last_min;
 	bool use_last;
@@ -98,6 +102,7 @@ public:
 	void generateLeastSquareMesh(int);
 
 	void degenerateLeastSquareMesh(float);
+	void degenerationMeshToLineSlider(float);
 	void degenerationMeshToLine(float);
 
 	int now_record_idx = 0;
@@ -106,6 +111,7 @@ public:
 	
 private:
 	MyMesh mesh;
+	MyMesh deg_simp_mesh;
 	VAO vao;
 
 	bool LoadModel(std::string fileName);

@@ -178,6 +178,15 @@ MyWindow(const int x, const int y)
 
 		pty += 30;
 
+		degeneration_simplify_slider = new Fl_Value_Slider(655, pty, 140, 20, "Deg Simplify");
+		degeneration_simplify_slider->range(0.0, 1.0);
+		degeneration_simplify_slider->value(1.0);
+		degeneration_simplify_slider->align(FL_ALIGN_LEFT);
+		degeneration_simplify_slider->type(FL_HORIZONTAL);
+		degeneration_simplify_slider->callback((Fl_Callback*)degenerationSimpCB, this);
+
+		pty += 30;
+
 		// TODO: add widgets for all of your fancier features here
 #ifdef EXAMPLE_SOLUTION
 		makeExampleWidgets(this, pty);

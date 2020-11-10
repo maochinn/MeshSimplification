@@ -94,7 +94,11 @@ void degenerationCB(Fl_Widget*, MyWindow* mw)
 	mw->damageMe();
 }
 
-
+void degenerationSimpCB(Fl_Widget*, MyWindow* mw)
+{
+	mw->myView->gl_mesh->degenerationMeshToLineSlider(mw->degeneration_simplify_slider->value());
+	mw->damageMe();
+}
 //void doCB(Fl_Widget*, MyWindow* mw)
 //{
 //	mw->myView->gl_mesh->collispe();

@@ -592,14 +592,23 @@ void MyMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L, int
 	}
 }
 
-void MyMesh::degenerationMeshToLine(std::map<VertexHandle, std::vector<SKHalfedge>>& outHalfedges)
+void MyMesh::degenerationMeshToLine()
 {
 	add_property(prop_sk_ve, "prop_sk_ve");// vertex error
 	add_property(prop_sk_vl, "prop_sk_vl");// vertex adjacent len
 	add_property(prop_sk_vQ, "prop_sk_vQ");//
 
 	std::vector<MyMesh::VertexHandle> sk_vertices;
+	std::map<MyMesh::VertexHandle, std::vector<MyMesh::SKHalfedge>> outHalfedges;
 	std::map< MyMesh::VertexHandle, std::vector<SKFace>> outFaces;
+	inv_avg_length = 0;
+	for (MyMesh::EdgeIter e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it) {
+		float length = this->calc_edge_length(e_it);
+		inv_avg_length += length;
+	}
+	inv_avg_length = (float)n_edges() / inv_avg_length;
+
+	std::cout << inv_avg_length << std::endl;
 
 	for (MyMesh::VertexIter v_it = this->vertices_begin(); v_it != this->vertices_end(); ++v_it) {
 		sk_vertices.push_back(v_it);
@@ -636,21 +645,50 @@ void MyMesh::degenerationMeshToLine(std::map<VertexHandle, std::vector<SKHalfedg
 	last_min = 0;
 	use_last = false;
 
+	degeneration_indices.clear();
+	
+	std::vector<unsigned int> indices;
+	for (auto hes_it = outHalfedges.begin(); hes_it != outHalfedges.end(); ++hes_it) {
+		std::vector<MyMesh::SKHalfedge>& halfedges = hes_it->second;
+		for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
+			indices.push_back(he_it->to.idx());
+			indices.push_back(he_it->from.idx());
+		}
+	}
+	degeneration_indices.push_back(indices);
+
 	int n = 500;
 	for (int j = 1; j <= n; j++)
 	{
 		for (int k = 0; k < 100; k++) {
 			if (collapseToLine(sk_vertices, outHalfedges, outFaces) == false)
 			{
-				return;
+				j = n + 1;
+				break;
 			}
 		}
 		time_t e_time = clock();
 		total_s_time += e_time - s_time;
 		std::cout << j << ", " << e_time - s_time << "ms , avg : " << total_s_time / float(j) << "ms                \r";
 		s_time = e_time;
+
+		// store
+		indices.clear();
+		for (auto hes_it = outHalfedges.begin(); hes_it != outHalfedges.end(); ++hes_it) {
+			std::vector<MyMesh::SKHalfedge>& halfedges = hes_it->second;
+			for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
+				indices.push_back(he_it->to.idx());
+				indices.push_back(he_it->from.idx());
+			}
+		}
+		degeneration_indices.push_back(indices);
 	}
 
+	int count = 0;
+	for (auto& ofaces : outFaces) {
+		count += ofaces.second.size();
+	}
+	std::cout << "\n faces: " << count << std::endl;
 }
 
 bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices, 
@@ -662,17 +700,13 @@ bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices,
 
 	bool found = false;
 
-	if (use_last)
-		min = last_min;
-
 	for (auto v_it = sk_vertices.begin(); v_it != sk_vertices.end() && !found; ++v_it) {
 		std::vector<SKHalfedge>& halfedges = ohe_map[*v_it];
 
 		for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
 
 			float cost = he_it->cost;
-
-			if (cost <= min)
+			if (cost < min)
 			{
 				if (edge_is_collapse_ok(of_map, ohe_map, he_it)) {
 					found = true;
@@ -694,7 +728,6 @@ bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices,
 		return false;
 	}
 
-	use_last = false;
 	last_min = min;
 
 	VertexHandle from = sk_he_it->from;
@@ -709,23 +742,29 @@ bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices,
 	computeSKVertexError(ohe_map, to);
 	std::vector<SKHalfedge>& halfedges = ohe_map[to];
 	for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-		if (!status(he_it->to).deleted()) {
-			computeSKVertexError(ohe_map, he_it->to);
+		computeSKVertexError(ohe_map, he_it->to);
 
-			std::vector<SKHalfedge>& to_halfedges = ohe_map[he_it->to];
+		std::vector<SKHalfedge>& to_halfedges = ohe_map[he_it->to];
 
-			for (auto to_he_it = to_halfedges.begin(); to_he_it != to_halfedges.end(); ++to_he_it)
+		for (auto to_he_it = to_halfedges.begin(); to_he_it != to_halfedges.end(); ++to_he_it)
+		{
+			computeSKEdgeCost(to_he_it);
+			float cost = to_he_it->cost;
+
+			if (cost < last_min)
 			{
-				if (!status(to_he_it->to).deleted()) {
+				last_min = cost;
+			}
 
-					computeSKEdgeCost(to_he_it);
-					float cost = to_he_it->cost;
+			std::vector<SKHalfedge>& to_to_halfedges = ohe_map[to_he_it->to];
+			for (auto to_to_he_it = to_to_halfedges.begin(); to_to_he_it != to_to_halfedges.end(); ++to_to_he_it)
+			{
+				computeSKEdgeCost(to_to_he_it);
+				float cost = to_to_he_it->cost;
 
-					if (cost < last_min)
-					{
-						last_min = cost;
-						use_last = true;
-					}
+				if (cost < last_min)
+				{
+					last_min = cost;
 				}
 			}
 		}
@@ -802,7 +841,7 @@ void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 	float adj_distance = property(prop_sk_vl, v_h0);
 
 	float length = (point(v_h0) - point(v_h1)).length();
-	float Fb = length * adj_distance;
+	float Fb = inv_avg_length * length * adj_distance;
 
 	sk_he_it->cost = w_a * Fa + w_b * Fb;
 }
@@ -810,8 +849,7 @@ void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 bool MyMesh::edge_is_collapse_ok(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 	std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, std::vector<SKHalfedge>::iterator sk_he_it)
 {
-	float l = (point(sk_he_it->from) - point(sk_he_it->to)).length();
-	return ((l < 0.01f) && (of_map[sk_he_it->from].size() > 1 && of_map[sk_he_it->to].size() > 1));
+	return (of_map[sk_he_it->from].size() > 0 && of_map[sk_he_it->to].size() > 0);
 }
 
 bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
@@ -826,36 +864,31 @@ bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 	std::vector<SKHalfedge>& halfedges0 = v0_he_iter->second;
 	std::vector<SKHalfedge>& halfedges1 = v1_he_iter->second;
 
-	// remove halfedge
-	for (auto t_he_it = halfedges1.begin(); t_he_it != halfedges1.end(); ++t_he_it) {
-		if (t_he_it->to == v_h0) {
-			halfedges1.erase(t_he_it);
-			break;
-		}
-	}
+	for (auto he_it0 = halfedges0.begin(); he_it0 != halfedges0.end(); ++he_it0) {
 
-	for (auto he_it = halfedges0.begin(); he_it != halfedges0.end(); ++he_it) {
-		if (he_it->to != v_h1) {
-			std::vector<SKHalfedge>& halfedges0_to = ohe_map[he_it->to];
-			// remove halfedge
-			for (auto t_he_it = halfedges0_to.begin(); t_he_it != halfedges0_to.end(); ++t_he_it) {
-				if (t_he_it->to == v_h0) {
-					halfedges0_to.erase(t_he_it);
-					break;
-				}
+		std::vector<SKHalfedge>& halfedges0_i = ohe_map[he_it0->to];
+
+		// remove halfedge
+		for (auto t_he_it = halfedges0_i.begin(); t_he_it != halfedges0_i.end(); ++t_he_it) {
+			if (t_he_it->to == v_h0) {
+				halfedges0_i.erase(t_he_it);
+				break;
 			}
+		}
 
+		// append edge
+		if (he_it0->to != v_h1) {
 			// check if this edge exist
 			bool found = false;
-			for (auto t_he_it = halfedges1.begin(); t_he_it != halfedges1.end(); ++t_he_it) {
-				if (t_he_it->to == he_it->to) {
+			for (auto he_it1 = halfedges1.begin(); he_it1 != halfedges1.end(); ++he_it1) {
+				if (he_it1->to == he_it0->to) {
 					found = true;
 					break;
 				}
 			}
 			if (!found) {
-				halfedges1.push_back(SKHalfedge(v_h1, he_it->to));
-				halfedges0_to.push_back(SKHalfedge(he_it->to, v_h1));
+				halfedges1.push_back(SKHalfedge(v_h1, he_it0->to));
+				halfedges0_i.push_back(SKHalfedge(he_it0->to, v_h1));
 			}
 			
 		}
@@ -870,42 +903,28 @@ bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 	std::vector<SKFace>& outfaces1 = v1_of_iter->second;
 
 	// remove face
-	for (auto t_of_it = outfaces1.begin(); t_of_it != outfaces1.end(); ) {
-		if (t_of_it->to[0] == v_h0 || t_of_it->to[1] == v_h0) {
-			t_of_it = outfaces1.erase(t_of_it);
-		}
-		else {
-			++t_of_it;
-		}
-	}
-
 	for (auto of_it0 = outfaces0.begin(); of_it0 != outfaces0.end(); ++of_it0) {
-
-		// remove face
 		for (int idx = 0; idx < 2; idx++) {
-			if (of_it0->to[idx] != v_h1) {
-				std::vector<SKFace>& outfaces0_i = of_map[of_it0->to[idx]];
-				for (auto t_of_it = outfaces0_i.begin(); t_of_it != outfaces0_i.end();) {
-					if (t_of_it->to[0] == v_h0 || t_of_it->to[1] == v_h0) {
-						t_of_it = outfaces0_i.erase(t_of_it);
-					}
-					else {
-						++t_of_it;
-					}
+			std::vector<SKFace>& outfaces0_i = of_map[of_it0->to[idx]];
+			for (auto t_of_it = outfaces0_i.begin(); t_of_it != outfaces0_i.end();) {
+				if (t_of_it->to[0] == v_h0 || t_of_it->to[1] == v_h0) {
+					t_of_it = outfaces0_i.erase(t_of_it);
+				}
+				else {
+					++t_of_it;
 				}
 			}
 		}
 
 		// add face
 		SKFace tmpFace;
-		if (of_it0->to[0] != v_h1 && of_it0->to[1] != v_h1) {
+		if ((of_it0->to[0] != v_h1) && (of_it0->to[1] != v_h1)) {
 			std::vector<SKFace>& outfaces0_0 = of_map[of_it0->to[0]];
 			std::vector<SKFace>& outfaces0_1 = of_map[of_it0->to[1]];
 
 			tmpFace.from = v_h1;
 			tmpFace.to[0] = of_it0->to[0];
 			tmpFace.to[1] = of_it0->to[1];
-			tmpFace.from = v_h1;
 			outfaces1.push_back(tmpFace);
 
 			tmpFace.from = of_it0->to[0];
@@ -1171,9 +1190,30 @@ void GLMesh::degenerateLeastSquareMesh(float ratio)
 		indices);
 }
 
+void GLMesh::degenerationMeshToLineSlider(float ratio)
+{
+	if (deg_simp_mesh.degeneration_indices.empty())
+	{
+		puts("Not yet simplified");
+		return;
+	}
+
+	int idx = (int)((1.0f - ratio) * (deg_simp_mesh.degeneration_indices.size() - 1));
+
+	std::vector<MyMesh::Point> vertices;
+	std::vector<MyMesh::Normal> normals;
+	for (MyMesh::VertexIter v_it = deg_simp_mesh.vertices_begin(); v_it != deg_simp_mesh.vertices_end(); ++v_it)
+	{
+		vertices.push_back(deg_simp_mesh.point(*v_it));
+		normals.push_back(mesh.normal(*v_it));
+	}
+
+	LoadToShader(vertices, normals, deg_simp_mesh.degeneration_indices[idx], 1);
+
+}
+
 void GLMesh::degenerationMeshToLine(float ratio)
 {
-
 	if (mesh.degeneration_vertices.empty())
 	{
 		puts("Not yet simplified");
@@ -1183,12 +1223,12 @@ void GLMesh::degenerationMeshToLine(float ratio)
 	int idx = (int)((1.0f - ratio) * (mesh.degeneration_vertices.size() - 1));
 	std::cout << "\nstart with idx = " << idx << std::endl;
 
-	MyMesh new_mesh;
+	deg_simp_mesh.clear();
 
 	std::vector<MyMesh::VertexHandle> v_handles;
 	for (OpenMesh::Vec3f v : mesh.degeneration_vertices[idx])
 	{
-		v_handles.push_back(new_mesh.add_vertex(v));
+		v_handles.push_back(deg_simp_mesh.add_vertex(v));
 	}
 	std::vector<MyMesh::VertexHandle>  face_vhandles;
 
@@ -1197,31 +1237,12 @@ void GLMesh::degenerationMeshToLine(float ratio)
 		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it) {
 			face_vhandles.push_back(v_handles[fv_it->idx()]);
 		}
-		new_mesh.add_face(face_vhandles);
+		deg_simp_mesh.add_face(face_vhandles);
 	}
 
-	std::map<MyMesh::VertexHandle, std::vector<MyMesh::SKHalfedge>> outHalfedges;
+	deg_simp_mesh.degenerationMeshToLine();
 
-	new_mesh.degenerationMeshToLine(outHalfedges);
-
-	std::vector<MyMesh::Point> vertices;
-	std::vector<MyMesh::Normal> normals;
-	for (MyMesh::VertexIter v_it = new_mesh.vertices_begin(); v_it != new_mesh.vertices_end(); ++v_it)
-	{
-		vertices.push_back(new_mesh.point(*v_it));
-		normals.push_back(mesh.normal(*v_it));
-	}
-
-	std::vector<unsigned int> indices;
-	for (auto hes_it = outHalfedges.begin(); hes_it != outHalfedges.end(); ++hes_it) {
-		std::vector<MyMesh::SKHalfedge>& halfedges = hes_it->second;
-		for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-			indices.push_back(he_it->to.idx());
-			indices.push_back(he_it->from.idx());
-		}
-	}
-
-	LoadToShader(vertices, normals, indices, 1);
+	this->degenerationMeshToLineSlider(0);
 }
 
 #pragma endregion
