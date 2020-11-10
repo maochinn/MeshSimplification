@@ -599,19 +599,28 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<std::vector<MyMesh::Point>>& 
 				At[i] += calc_face_area(vf_it);
 			}
 
-			//double tmpW_H = W0_H * pow(A0[i] / At[i], 3.0);
-			double tmpW_H = W0_H * sqrt(A0[i] / At[i]);
-			//W_H[i] = W0_H * sqrt(A0[i] / At[i]);
-			if (tmpW_H > W_H[i]) {
-				W_H[i] = tmpW_H;
+			if (At[i] < 0.00000001) {
+				W_H[i] = W_L;
+			}
+			else {
+				//double tmpW_H = W0_H * pow(A0[i] / At[i], 3.0);
+				double tmpW_H = W0_H * sqrt(A0[i] / At[i]);
+				//W_H[i] = W0_H * sqrt(A0[i] / At[i]);
+				if (tmpW_H > W_H[i]) {
+					W_H[i] = tmpW_H;
+				}
 			}
 		}
 		record_vertices.push_back(degeneration_points);
 	}
 }
-void MyMesh::degenerationMeshToLine(
-	std::vector<std::vector<unsigned int>>& degeneration_indices, std::vector<MyMesh::Point>& origin_vertices)
+void MyMesh::degenerationMeshToLine(std::vector<std::vector<unsigned int>>& degeneration_indices, std::vector<MyMesh::Point>& origin_vertices,
+	double w_a, double w_b)
 {
+
+	SK_WA = w_a;
+	SK_WB = w_b;
+
 	add_property(prop_sk_vl, "prop_sk_vl");// vertex adjacent len
 	add_property(prop_sk_vQ, "prop_sk_vQ");//
 
@@ -880,9 +889,6 @@ void MyMesh::computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>
 }
 void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 {
-	const double w_a = 1000.0;
-	const double w_b = 500.0;
-
 	VertexHandle v_h0 = sk_he_it->from; // from
 	VertexHandle v_h1 = sk_he_it->to; // to
 
@@ -900,9 +906,9 @@ void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 
 	Point p01 = (p1 - p0);
 	double length = sqrt((double)p01[0] * (double)p01[0] + (double)p01[1] * (double)p01[1] + (double)p01[2] * (double)p01[2]);
-	double Fb = length + adj_distance;
+	double Fb = length * adj_distance;
 
-	sk_he_it->cost = w_a * Fa + w_b * Fb;
+	sk_he_it->cost = SK_WA * Fa + SK_WB * Fb;
 }
 bool MyMesh::edge_is_collapse_ok(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 	std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, std::vector<SKHalfedge>::iterator sk_he_it)
@@ -1320,7 +1326,7 @@ void GLMesh::degenerationMeshToLine(float ratio)
 
 }
 
-void GLMesh::degenerationMeshToLine()
+void GLMesh::degenerationMeshToLine(double w_a, double w_b)
 {
 	if (degeneration_vertices.empty())
 		return;
@@ -1336,7 +1342,7 @@ void GLMesh::degenerationMeshToLine()
 		skeleton_normal.push_back(mesh.normal(*v_it));
 	}
 
-	mesh.degenerationMeshToLine(skeleton_indices, initial_vertices);
+	mesh.degenerationMeshToLine(skeleton_indices, initial_vertices, w_a, w_b);
 
 	this->degenerationMeshToLine(0);
 }

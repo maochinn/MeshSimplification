@@ -125,7 +125,10 @@ void degenerationSlideCB(Fl_Widget*, MyWindow* mw)
 
 void SkeletonCB(Fl_Widget*, MyWindow* mw)
 {
-	mw->myView->gl_mesh->degenerationMeshToLine();
+	mw->myView->gl_mesh->degenerationMeshToLine(
+		mw->SK_WA->value(),
+		mw->SK_WB->value()
+	);
 	mw->damageMe();
 }
 void SkeletonSlideCB(Fl_Widget*, MyWindow* mw)

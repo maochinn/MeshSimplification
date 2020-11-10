@@ -67,7 +67,7 @@ public:
 		VertexHandle from;
 		VertexHandle to[2];
 	};
-	void degenerationMeshToLine(std::vector<std::vector<unsigned int>>& , std::vector<MyMesh::Point>&);
+	void degenerationMeshToLine(std::vector<std::vector<unsigned int>>& , std::vector<MyMesh::Point>&, double, double);
 	bool collapseToLine(std::vector<VertexHandle>&,
 		std::map<VertexHandle, std::vector<SKHalfedge>>&, std::map<VertexHandle, std::vector<SKFace>>&,
 		std::map < VertexHandle, std::vector<VertexHandle>>&);
@@ -79,6 +79,9 @@ public:
 
 
 private:
+	double SK_WA;
+	double SK_WB;
+
 	int sk_face_count;
 	float last_min;
 	bool use_last;
@@ -114,7 +117,7 @@ public:
 
 	void degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L);
 	void degenerateLeastSquareMesh(float);
-	void degenerationMeshToLine();
+	void degenerationMeshToLine(double,double);
 	void degenerationMeshToLine(float);
 
 private:

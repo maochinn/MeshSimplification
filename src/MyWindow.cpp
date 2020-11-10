@@ -149,6 +149,8 @@ MyWindow(const int x, const int y)
 
 		pty += 30;
 
+		SK_WA = new Fl_Value_Input(675, pty, 60, 20, "WA"); SK_WA->value(1000.0); pty += 25;
+		SK_WB = new Fl_Value_Input(675, pty, 60, 20, "WB"); SK_WB->value(800.0); pty += 25;
 		// TODO: add widgets for all of your fancier features here
 #ifdef EXAMPLE_SOLUTION
 		makeExampleWidgets(this, pty);

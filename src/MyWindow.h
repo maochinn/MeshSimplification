@@ -87,4 +87,8 @@ public:
 	Fl_Value_Input* WH0;
 	Fl_Value_Input* SL;
 
+	Fl_Value_Input* SK_WA;
+	Fl_Value_Input* SK_WB;
+
+
 };
