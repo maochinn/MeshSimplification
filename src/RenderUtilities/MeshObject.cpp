@@ -1092,15 +1092,21 @@ bool GLMesh::Init(std::string fileName)
 
 void GLMesh::renderMesh()
 {
-	glBindVertexArray(this->vao.vao);
-	glDrawElements(GL_TRIANGLES, this->vao.element_amount, GL_UNSIGNED_INT, 0);
-	glBindVertexArray(0);
+	if (this->vao.element_amount)
+	{
+		glBindVertexArray(this->vao.vao);
+		glDrawElements(GL_TRIANGLES, this->vao.element_amount, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
+	}
 }
 void GLMesh::renderSkeleton()
 {
-	glBindVertexArray(this->skeleton.vao);
-	glDrawElements(GL_LINES, this->skeleton.element_amount, GL_UNSIGNED_INT, 0);
-	glBindVertexArray(0);
+	if (this->skeleton.element_amount)
+	{
+		glBindVertexArray(this->skeleton.vao);
+		glDrawElements(GL_LINES, this->skeleton.element_amount, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
+	}
 }
 
 bool GLMesh::LoadModel(std::string fileName)
