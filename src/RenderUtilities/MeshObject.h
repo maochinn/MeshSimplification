@@ -58,8 +58,9 @@ public:
 		VertexHandle from;
 		VertexHandle to[2];
 	};
-	void degenerationMeshToLine();
-	bool collapseToLine(std::vector<VertexHandle>& ,std::map<VertexHandle, std::vector<SKHalfedge>>&, std::map<VertexHandle, std::vector<SKFace>>& of_map);
+	void degenerationMeshToLine(std::vector<MyMesh::Point>&);
+	bool collapseToLine(std::vector<VertexHandle>& ,std::map<VertexHandle, std::vector<SKHalfedge>>&, std::map<VertexHandle, std::vector<SKFace>>& of_map,
+		std::map < VertexHandle, std::vector<VertexHandle>>&);
 	void initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfedge>>&, MyMesh::VertexHandle);
 	void computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>>& ,MyMesh::VertexHandle);
 	void computeSKEdgeCost(std::vector<SKHalfedge>::iterator);
@@ -104,7 +105,6 @@ public:
 	void degenerationMeshToLine(float);
 
 	int now_record_idx = 0;
-
 	int render_mode = 0;
 	
 private:
