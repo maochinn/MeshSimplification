@@ -690,6 +690,8 @@ void MyMesh::degenerationMeshToLine(std::vector<MyMesh::Point>& origin_vertices)
 	std::map<VertexHandle, Point> displacements;
 	for (auto& bound : boundaries) {
 		std::vector<VertexHandle>& v_loop = bound.second;
+		v_loop.push_back(bound.first);
+
 		Point disp(0, 0, 0);
 		double total = 0;
 		for (auto v_it = v_loop.begin(); v_it != v_loop.end(); ++v_it) {
@@ -865,7 +867,7 @@ void MyMesh::computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>
 void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 {
 	const double w_a = 1000.0;
-	const double w_b = 200.0;
+	const double w_b = 50.0;
 
 	VertexHandle v_h0 = sk_he_it->from; // from
 	VertexHandle v_h1 = sk_he_it->to; // to
