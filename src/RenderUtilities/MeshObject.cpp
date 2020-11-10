@@ -598,8 +598,8 @@ void MyMesh::degenerateLeastSquareMesh(std::vector<std::vector<MyMesh::Point>>& 
 				At[i] += calc_face_area(vf_it);
 			}
 
-			//double tmpW_H = W0_H * pow(A0[i] / At[i] , 2.0);
-			double tmpW_H = W0_H * sqrt(A0[i] / At[i]);
+			double tmpW_H = W0_H * pow(A0[i] / At[i] + 0.6, 2.0);
+			//double tmpW_H = W0_H * sqrt(A0[i] / At[i]);
 			//W_H[i] = W0_H * sqrt(A0[i] / At[i]);
 			if (tmpW_H > W_H[i]) {
 				W_H[i] = tmpW_H;
@@ -670,10 +670,10 @@ void MyMesh::degenerationMeshToLine(
 	}
 	degeneration_indices.push_back(indices);
 
-	int n = 2000;
+	int n = 100;
 	for (int j = 1; j <= n; j++)
 	{
-		for (int k = 0; k < 50; k++) {
+		for (int k = 0; k < 1000; k++) {
 			if (collapseToLine(sk_vertices, outHalfedges, outFaces, boundaries) == false)
 			{
 				j = n + 1;
@@ -881,7 +881,7 @@ void MyMesh::computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>
 void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 {
 	const double w_a = 1000.0;
-	const double w_b = 50.0;
+	const double w_b = 32.0;
 
 	VertexHandle v_h0 = sk_he_it->from; // from
 	VertexHandle v_h1 = sk_he_it->to; // to
