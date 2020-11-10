@@ -1257,14 +1257,14 @@ void GLMesh::generateLeastSquareMesh(int control_num)
 	LoadToShader();
 }
 
-void GLMesh::degenerateLeastSquareMesh()
+void GLMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L)
 {
 	for (auto& d : degeneration_vertices)
 		d.clear();
 	degeneration_vertices.clear();
 	degeneration_indices.clear();
 
-	mesh.degenerateLeastSquareMesh(degeneration_vertices, 0.005, 1.2, 2.8, 20);
+	mesh.degenerateLeastSquareMesh(degeneration_vertices, W0_L, W0_H, S_L);
 
 	for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
 		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)

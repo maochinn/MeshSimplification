@@ -29,6 +29,8 @@
 #include <FL/fl.h>
 #include <FL/Fl_Box.h>
 
+
+
 // for using the real time clock
 #include <time.h>
 
@@ -84,7 +86,6 @@ MyWindow(const int x, const int y)
 		top_cam->selection_color((Fl_Color)3);
 		top_cam->callback((Fl_Callback*)damageCB, this);
 		camGroup->end();
-
 		pty += 30;
 
 		// browser to select spline types
@@ -99,9 +100,11 @@ MyWindow(const int x, const int y)
 		//pty += 110;
 
 		// reset the points
-		Fl_Button* exportMesh = new Fl_Button(605, pty, 60, 20, "Export");
+		Fl_Button* importMesh = new Fl_Button(605, pty, 60, 20, "Import");
+		importMesh->callback((Fl_Callback*)importCB, this);
+		Fl_Button* exportMesh = new Fl_Button(675, pty, 60, 20, "Export");
 		exportMesh->callback((Fl_Callback*)exportCB, this);
-		Fl_Button* reset = new Fl_Button(675, pty, 60, 20, "Reset");
+		Fl_Button* reset = new Fl_Button(735, pty, 60, 20, "Reset");
 		reset->callback((Fl_Callback*)resetCB, this);
 		pty += 25;
 
@@ -120,6 +123,10 @@ MyWindow(const int x, const int y)
 		Fl_Button* Degeneration = new Fl_Button(605, pty, 60, 20, "Degeneration");
 		Degeneration->callback((Fl_Callback*)degenerationCB, this);
 		pty += 25;
+		WL0 = new Fl_Value_Input(675, pty, 60, 20, "WL0"); WL0->value(0.001); pty += 25;
+		WH0 = new Fl_Value_Input(675, pty, 60, 20, "WH0"); WH0->value(1.0); pty += 25;
+		SL = new Fl_Value_Input(675, pty, 60, 20, "SL"); SL->value(4.0); pty += 25;
+		
 
 		degeneration_slider = new Fl_Value_Slider(655, pty, 140, 20, "D");
 		degeneration_slider->range(0.0, 1.0);

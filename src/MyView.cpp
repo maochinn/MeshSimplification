@@ -181,7 +181,7 @@ void MyView::draw()
 			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_200k_org.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_100k_hk_normalize.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk.obj");
-			this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk_normalize.obj");
+			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk_normalize.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/dancer_25k_org.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/sphere.obj");
 			//this->gl_mesh->Init("../MeshSimplification/Models/Cube.obj");
