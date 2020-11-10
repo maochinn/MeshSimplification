@@ -61,25 +61,13 @@ MyWindow(const int x, const int y)
 		widgets = new Fl_Group(600, 5, 190, 590);
 		widgets->begin();
 
-		//runButton = new Fl_Button(605, pty, 60, 20, "Run");
-		//togglify(runButton);
+		renderMeshButton = new Fl_Button(605, pty, 60, 20, "Mesh");
+		togglify(renderMeshButton, 1);
 
-		//Fl_Button* fb = new Fl_Button(700,pty,25,20,"@>>");
-		//fb->callback((Fl_Callback*)forwCB,this);
-		//Fl_Button* rb = new Fl_Button(670,pty,25,20,"@<<");
-		//rb->callback((Fl_Callback*)backCB,this);
-		//
-		//arcLength = new Fl_Button(730,pty,65,20,"ArcLength");
-		//togglify(arcLength,1);
-  //
-		//pty+=25;
-		//speed = new Fl_Value_Slider(655,pty,140,20,"speed");
-		//speed->range(0,10);
-		//speed->value(2);
-		//speed->align(FL_ALIGN_LEFT);
-		//speed->type(FL_HORIZONTAL);
+		renderSkeletonButton = new Fl_Button(730, pty, 65, 20, "Skeleton");
+		togglify(renderSkeletonButton, 0);
 
-		//pty += 30;
+		pty += 25;
 
 		// camera buttons - in a radio button group
 		Fl_Group* camGroup = new Fl_Group(600, pty, 195, 20);
@@ -89,11 +77,7 @@ MyWindow(const int x, const int y)
 		world_cam->value(1);			// turned on
 		world_cam->selection_color((Fl_Color)3); // yellow when pressed
 		world_cam->callback((Fl_Callback*)damageCB, this);
-		//trainCam = new Fl_Button(670, pty, 60, 20, "Train");
-  //      trainCam->type(FL_RADIO_BUTTON);
-  //      trainCam->value(0);
-  //      trainCam->selection_color((Fl_Color)3);
-		//trainCam->callback((Fl_Callback*)damageCB,this);
+
 		top_cam = new Fl_Button(735, pty, 60, 20, "Top");
 		top_cam->type(FL_RADIO_BUTTON);
 		top_cam->value(0);
@@ -104,86 +88,57 @@ MyWindow(const int x, const int y)
 		pty += 30;
 
 		// browser to select spline types
-		simplification_browser = new Fl_Browser(605, pty, 120, 75, "Method");
-		simplification_browser->type(2);		// select
-		simplification_browser->callback((Fl_Callback*)damageCB, this);
-		simplification_browser->add("Average");
-		simplification_browser->add("Median");
-		simplification_browser->add("Error quadrics");
-		simplification_browser->select(1);
-
-		pty += 110;
-
-		//// add and delete points
-		//Fl_Button* ap = new Fl_Button(605,pty,80,20,"Add Point");
-		//ap->callback((Fl_Callback*)addPointCB,this);
-		//Fl_Button* dp = new Fl_Button(690,pty,80,20,"Delete Point");
-		//dp->callback((Fl_Callback*)deletePointCB,this);
-
-		//pty += 25;
-		// reset the points
-		Fl_Button* testing = new Fl_Button(605,pty,60,20,"Testing");
-		testing->callback((Fl_Callback*)testingCB, this);
-		pty += 25;
-
-		Fl_Button* exportMesh = new Fl_Button(605, pty, 60, 20, "Export");
-		exportMesh->callback((Fl_Callback*)exportCB, this);
-		pty += 25;
-
-		//// roll the points
-		//Fl_Button* rx = new Fl_Button(605,pty,30,20,"R+X");
-		//rx->callback((Fl_Callback*)rpxCB,this);
-		//Fl_Button* rxp = new Fl_Button(635,pty,30,20,"R-X");
-		//rxp->callback((Fl_Callback*)rmxCB,this);
-		//Fl_Button* rz = new Fl_Button(670,pty,30,20,"R+Z");
-		//rz->callback((Fl_Callback*)rpzCB,this);
-		//Fl_Button* rzp = new Fl_Button(700,pty,30,20,"R-Z");
-		//rzp->callback((Fl_Callback*)rmzCB,this);
-
-		//pty+=30;
-
-		//waterBrowser = new Fl_Browser(605, pty, 120, 75, "Wave Type");
-		//waterBrowser->type(1);		// select
-		//waterBrowser->callback((Fl_Callback*)updateWaterType, this);
-		//waterBrowser->add("Sine wave");
-		//waterBrowser->add("Heightmap");
-		//waterBrowser->add("Simulation");
-		//waterBrowser->select(1);
+		//simplification_browser = new Fl_Browser(605, pty, 120, 75, "Method");
+		//simplification_browser->type(2);		// select
+		//simplification_browser->callback((Fl_Callback*)damageCB, this);
+		//simplification_browser->add("Average");
+		//simplification_browser->add("Median");
+		//simplification_browser->add("Error quadrics");
+		//simplification_browser->select(1);
 
 		//pty += 110;
 
-		//amplitude = new Fl_Value_Slider(655, pty, 140, 20, "Amplitude");
-		//amplitude->range(0.0, 1.0);
-		//amplitude->value(0.1);
-		//amplitude->align(FL_ALIGN_LEFT);
-		//amplitude->type(FL_HORIZONTAL);
+		// reset the points
+		Fl_Button* exportMesh = new Fl_Button(605, pty, 60, 20, "Export");
+		exportMesh->callback((Fl_Callback*)exportCB, this);
+		Fl_Button* reset = new Fl_Button(675, pty, 60, 20, "Reset");
+		reset->callback((Fl_Callback*)resetCB, this);
+		pty += 25;
 
-		//pty += 30;
+		Fl_Button* Simplification = new Fl_Button(605, pty, 60, 20, "Simplification");
+		Simplification->callback((Fl_Callback*)simplificationCB, this);
+		pty += 25;
 
-		simplification_slider = new Fl_Value_Slider(655, pty, 140, 20, "Weight");
+		simplification_slider = new Fl_Value_Slider(655, pty, 140, 20, "S");
 		simplification_slider->range(0.0, 1.0);
 		simplification_slider->value(1.0);
 		simplification_slider->align(FL_ALIGN_LEFT);
 		simplification_slider->type(FL_HORIZONTAL);
-		simplification_slider->callback((Fl_Callback*)simplificationCB, this);
-
+		simplification_slider->callback((Fl_Callback*)simplificationSlideCB, this);
 		pty += 30;
 
-		degeneration_slider = new Fl_Value_Slider(655, pty, 140, 20, "Degeneration");
+		Fl_Button* Degeneration = new Fl_Button(605, pty, 60, 20, "Degeneration");
+		Degeneration->callback((Fl_Callback*)degenerationCB, this);
+		pty += 25;
+
+		degeneration_slider = new Fl_Value_Slider(655, pty, 140, 20, "D");
 		degeneration_slider->range(0.0, 1.0);
 		degeneration_slider->value(1.0);
 		degeneration_slider->align(FL_ALIGN_LEFT);
 		degeneration_slider->type(FL_HORIZONTAL);
-		degeneration_slider->callback((Fl_Callback*)degenerationCB, this);
-
+		degeneration_slider->callback((Fl_Callback*)degenerationSlideCB, this);
 		pty += 30;
 
-		degeneration_simplify_slider = new Fl_Value_Slider(655, pty, 140, 20, "Deg Simplify");
+		Fl_Button* Skeleton = new Fl_Button(605, pty, 60, 20, "Skeleton");
+		Skeleton->callback((Fl_Callback*)SkeletonCB, this);
+		pty += 25;
+
+		degeneration_simplify_slider = new Fl_Value_Slider(655, pty, 140, 20, "DS");
 		degeneration_simplify_slider->range(0.0, 1.0);
 		degeneration_simplify_slider->value(1.0);
 		degeneration_simplify_slider->align(FL_ALIGN_LEFT);
 		degeneration_simplify_slider->type(FL_HORIZONTAL);
-		degeneration_simplify_slider->callback((Fl_Callback*)degenerationSimpCB, this);
+		degeneration_simplify_slider->callback((Fl_Callback*)SkeletonSlideCB, this);
 
 		pty += 30;
 

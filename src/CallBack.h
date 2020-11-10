@@ -58,7 +58,7 @@ void idleCB(MyWindow* mw)
 	{
 		//float fps = CLOCKS_PER_SEC / (float)(clock() - lastRedraw);
 		//if (fps < 30.0)
-		if (clock() - lastRedraw > CLOCKS_PER_SEC / 30) 
+		if (clock() - lastRedraw > CLOCKS_PER_SEC / 30)
 		{
 			//system("cls");
 			//std::cout << "FPS:" << fps << std::endl;
@@ -70,19 +70,30 @@ void idleCB(MyWindow* mw)
 	}
 }
 
-void testingCB(Fl_Widget*, MyWindow* mw)
-{
-	mw->myView->gl_mesh->degenerationMeshToLine(mw->degeneration_slider->value());
-	mw->damageMe();
-}
+//void testingCB(Fl_Widget*, MyWindow* mw)
+//{
+//	mw->myView->gl_mesh->degenerationMeshToLine(mw->degeneration_slider->value());
+//	mw->damageMe();
+//}
 
 void exportCB(Fl_Widget*, MyWindow* mw)
 {
-	mw->myView->gl_mesh->exportSimplificationMesh(mw->simplification_slider->value());
+	mw->myView->gl_mesh->exportMesh();
+	mw->damageMe();
+}
+
+void resetCB(Fl_Widget*, MyWindow* mw)
+{
+	mw->myView->gl_mesh->resetMesh();
 	mw->damageMe();
 }
 
 void simplificationCB(Fl_Widget*, MyWindow* mw)
+{
+	mw->myView->gl_mesh->simplification();
+	mw->damageMe();
+}
+void simplificationSlideCB(Fl_Widget*, MyWindow* mw)
 {
 	mw->myView->gl_mesh->simplification(mw->simplification_slider->value());
 	mw->damageMe();
@@ -90,15 +101,26 @@ void simplificationCB(Fl_Widget*, MyWindow* mw)
 
 void degenerationCB(Fl_Widget*, MyWindow* mw)
 {
+	mw->myView->gl_mesh->degenerateLeastSquareMesh();
+	mw->damageMe();
+}
+void degenerationSlideCB(Fl_Widget*, MyWindow* mw)
+{
 	mw->myView->gl_mesh->degenerateLeastSquareMesh(mw->degeneration_slider->value());
 	mw->damageMe();
 }
 
-void degenerationSimpCB(Fl_Widget*, MyWindow* mw)
+void SkeletonCB(Fl_Widget*, MyWindow* mw)
 {
-	mw->myView->gl_mesh->degenerationMeshToLineSlider(mw->degeneration_simplify_slider->value());
+	mw->myView->gl_mesh->degenerationMeshToLine();
 	mw->damageMe();
 }
+void SkeletonSlideCB(Fl_Widget*, MyWindow* mw)
+{
+	mw->myView->gl_mesh->degenerationMeshToLine(mw->degeneration_simplify_slider->value());
+	mw->damageMe();
+}
+
 //void doCB(Fl_Widget*, MyWindow* mw)
 //{
 //	mw->myView->gl_mesh->collispe();

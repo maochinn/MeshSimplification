@@ -70,7 +70,8 @@ public:
 	Fl_Group* widgets;	// all widgets, grouped for resizing ease
 
 	// utility buttons
-	//Fl_Button* resetButton;
+	Fl_Button* renderMeshButton;
+	Fl_Button* renderSkeletonButton;
 
 	// which viewpoint are we drawing from
 	Fl_Button* world_cam;

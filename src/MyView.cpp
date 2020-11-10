@@ -305,7 +305,12 @@ void MyView::draw()
 	//glBindVertexArray(0);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	this->gl_mesh->Render();
+
+	if (mw->renderMeshButton->value())
+		this->gl_mesh->renderMesh();
+	if (mw->renderSkeletonButton->value())
+		this->gl_mesh->renderSkeleton();
+
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	//unbind VAO
 	glBindVertexArray(0);

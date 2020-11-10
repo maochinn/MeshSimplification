@@ -11,6 +11,11 @@ constexpr const T& clamp(const T& v, const T& lo, const T& hi)
 	return (v < lo) ? lo : (hi < v) ? hi : v;
 }
 
+inline double cot(Eigen::Vector3d v, Eigen::Vector3d w) {
+	if (v == w)
+		return std::numeric_limits<double>::infinity();
+	return(v.dot(w) / v.cross(w).norm());
+};
 
 #pragma region MyMesh
 
@@ -26,6 +31,31 @@ MyMesh::MyMesh()
 MyMesh::~MyMesh()
 {
 
+}
+
+bool MyMesh::reloadMesh(std::vector<MyMesh::Point> vertices, std::vector<unsigned int> indices)
+{
+	if (vertices.empty() || indices.empty())
+		return false;
+
+	this->ClearMesh();
+
+	std::vector<MyMesh::VertexHandle> v_handles;
+	for (OpenMesh::Vec3f v : vertices)
+	{
+		v_handles.push_back(this->add_vertex(v));
+	}
+	std::vector<MyMesh::VertexHandle>  face_vhandles;
+	for (int i = 0; i < indices.size(); i += 3)
+	{
+		face_vhandles.clear();
+		face_vhandles.push_back(v_handles[indices[i]]);
+		face_vhandles.push_back(v_handles[indices[i + 1]]);
+		face_vhandles.push_back(v_handles[indices[i + 2]]);
+		this->add_face(face_vhandles);
+	}
+
+	this->update_normals();
 }
 
 int MyMesh::FindVertex(MyMesh::Point pointToFind)
@@ -122,7 +152,7 @@ void MyMesh::computeError(MyMesh::EdgeHandle e_handle)
 		float e1 = abs(V1.dot(Q * V1));
 		float e2 = abs(V2.dot(Q * V2));
 
-		if (e0 > e1 && e0 > e2) {
+		if (e0 > e1&& e0 > e2) {
 			V = V0;
 			e = e0;
 		}
@@ -149,7 +179,7 @@ void MyMesh::computeError(MyMesh::EdgeHandle e_handle)
 void MyMesh::computeError()
 {
 	this->add_property(prop_v, "prop_v");
-	this->add_property(prop_e, "prop_e"); 
+	this->add_property(prop_e, "prop_e");
 
 	for (MyMesh::EdgeIter e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it)
 	{
@@ -267,10 +297,13 @@ bool MyMesh::collapse()
 
 	return true;
 }
-void MyMesh::record() 
+void MyMesh::recordSimplification(
+	std::vector<std::vector<MyMesh::Point>>& record_vertices,
+	std::vector<std::vector<MyMesh::Normal>>& record_normals,
+	std::vector<std::vector<unsigned int>>& record_indices)
 {
 	std::vector<MyMesh::Point> points;
-	std::vector<MyMesh::Point> normals;
+	std::vector<MyMesh::Normal> normals;
 	std::vector<unsigned int> indices;
 
 	for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it)
@@ -291,19 +324,23 @@ void MyMesh::record()
 }
 
 #include <time.h>
-void MyMesh::simplification()
+void MyMesh::simplification(
+	std::vector<std::vector<MyMesh::Point>>& record_vertices,
+	std::vector<std::vector<MyMesh::Normal>>& record_normals,
+	std::vector<std::vector<unsigned int>>& record_indices)
 {
 	time_t total_s_time = 0;
 	time_t s_time = clock();
 
 	last_min = 0;
 	use_last = false;
+	last_handle = MyMesh::EdgeHandle();
 
 	if (record_vertices.empty())
 	{
 		int i = 0;
-		record();
-		for (int j = 0; j < 200;j++)
+		recordSimplification(record_vertices, record_normals, record_indices);
+		for (int j = 0; j < 200; j++)
 		{
 			int n = std::min(1499, (int)(n_edges() * 0.016)) + 1;
 			for (int k = 0; k < n; k++)
@@ -312,17 +349,17 @@ void MyMesh::simplification()
 				if (collapse() == false)
 				{
 					garbage_collection();
-					record();
+					recordSimplification(record_vertices, record_normals, record_indices);
 					return;
 				}
 			}
 
 			garbage_collection();
-			record();
+			recordSimplification(record_vertices, record_normals, record_indices);
 
 			time_t e_time = clock();
 			total_s_time += e_time - s_time;
-			std::cout << j << " : " << n << ", "<< e_time - s_time << "ms , avg : " << total_s_time / float(i)<< "ms                \r";
+			std::cout << j << " : " << n << ", " << e_time - s_time << "ms , avg : " << total_s_time / float(i) << "ms                \r";
 			s_time = e_time;
 		}
 	}
@@ -418,12 +455,7 @@ void MyMesh::generateLeastSquareMesh(std::vector<MyMesh::Point>& points, int con
 	}
 }
 
-inline double cot(Eigen::Vector3d v, Eigen::Vector3d w) {
-	if (v == w)
-		return std::numeric_limits<double>::infinity();
-	return(v.dot(w) / v.cross(w).norm());
-};
-double MyMesh::computeWeight(MyMesh::HalfedgeHandle& heh)
+double MyMesh::computeLaplacianWeight(MyMesh::HalfedgeHandle& heh)
 {
 	GLdouble alpha, beta, weight;
 	MyMesh::Point pFrom = point(from_vertex_handle(heh));
@@ -448,11 +480,22 @@ double MyMesh::computeWeight(MyMesh::HalfedgeHandle& heh)
 	//if (std::sin(alpha) == 0 || std::sin(beta) == 0)
 		//	return FLT_MAX;
 		//return std::cos(alpha) / std::sin(alpha) + std::cos(beta) / std::sin(beta);
-	
+
 	return cot(v_1, v_2) + cot(v_3, v_4);
 }
-void MyMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L, int iterations)
+void MyMesh::degenerateLeastSquareMesh(std::vector<std::vector<MyMesh::Point>>& record_vertices, double W0_L, double W0_H, double S_L, int iterations)
 {
+	//record initial
+	{
+		std::vector<MyMesh::Point> initial_points;
+		for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it)
+		{
+			initial_points.push_back(point(v_it));
+		}
+		record_vertices.push_back(initial_points);
+	}
+
+
 	const int N(n_vertices());
 	std::map<VertexHandle, int> vertices;
 	std::vector<double> A0(N), At(N);
@@ -492,11 +535,8 @@ void MyMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L, int
 		Eigen::SparseMatrix<double> A(N + N, N);
 		Eigen::SparseMatrix<double> b(N + N, 3);
 
-		//Eigen::VectorXd bx(N + N, 1); bx.setZero();
-		//Eigen::VectorXd by(N + N, 1); by.setZero();
-		//Eigen::VectorXd bz(N + N, 1); bz.setZero();
 		std::vector<Eigen::Triplet<double>> triplet_list_A, triplet_list_b, triplet_list_bx, triplet_list_by, triplet_list_bz;
-	
+
 		for (auto it = vertices.begin(); it != vertices.end(); it++)
 		{
 			// Laplacian
@@ -506,7 +546,7 @@ void MyMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L, int
 			double w_ij = 0.0;
 			for (MyMesh::VertexOHalfedgeIter voh_it = voh_iter(it->first); voh_it.is_valid(); ++voh_it)
 			{
-				double w_ik = computeWeight(voh_it.handle());
+				double w_ik = computeLaplacianWeight(voh_it.handle());
 
 				int k = vertices[to_vertex_handle(voh_it)];
 				triplet_list_A.push_back(Eigen::Triplet<double>(i, k, W_L * w_ik));
@@ -522,54 +562,31 @@ void MyMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L, int
 			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[0]));
 			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 1, W_H[i] * vi[1]));
 			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 2, W_H[i] * vi[2]));
-
-			//triplet_list_bx.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[0]));
-			//triplet_list_by.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[1]));
-			//triplet_list_bz.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[2]));
-
-			//bx(N + i, 0) = W_H[i] * vi[0];
-			//by(N + i, 0) = W_H[i] * vi[1];
-			//bz(N + i, 0) = W_H[i] * vi[2];
 		}
 		//fullfill A and b
 		A.setFromTriplets(triplet_list_A.begin(), triplet_list_A.end());
 		b.setFromTriplets(triplet_list_b.begin(), triplet_list_b.end());
-
-	/*	bx.setFromTriplets(triplet_list_bx.begin(), triplet_list_bx.end());
-		by.setFromTriplets(triplet_list_by.begin(), triplet_list_by.end());
-		bz.setFromTriplets(triplet_list_bz.begin(), triplet_list_bz.end());*/
-
-		//std::cout << A << std::endl;
-		//std::cout << bx << std::endl;
 
 		Eigen::SparseMatrix<double> ATA = A.transpose() * A;
 		Eigen::SparseMatrix<double> ATb = A.transpose() * b;
 
 		////
 		Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver(ATA);
-		//Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver(ATA);
 		Eigen::MatrixXd x = solver.solve(ATb);
-		//Eigen::VectorXd newx = solver.solve(ATbx);
-		//Eigen::VectorXd newy = solver.solve(ATby);
-		//Eigen::VectorXd newz = solver.solve(ATbz);
 
 		std::cout << x(0, 0) << std::endl;
+		if (isnan(x(0, 0)))
+			return;
 
 		//update
 		W_L *= S_L;
 		for (auto it = vertices.begin(); it != vertices.end(); it++)
 		{
 			int i = it->second;
-			float xx = x(i, 0);
-			float yy = x(i, 1);
-			float zz = x(i, 2);
+			MyMesh::Point new_point(x(i, 0), x(i, 1), x(i, 2));
 
-			//float xx = newx(i, 0);
-			//float yy = newy(i, 0);
-			//float zz = newz(i, 0);
-			set_point(it->first, MyMesh::Point(xx, yy, zz));
-
-			degeneration_points[i] = MyMesh::Point(xx, yy, zz);
+			set_point(it->first, new_point);
+			degeneration_points[i] = new_point;
 		}
 
 		for (auto it = vertices.begin(); it != vertices.end(); it++)
@@ -581,18 +598,18 @@ void MyMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L, int
 				At[i] += calc_face_area(vf_it);
 			}
 
-			double tmpW_H = W0_H * pow(A0[i] / At[i] + 0.6, 2.0);
-			//double tmpW_H = W0_H * sqrt(A0[i] / At[i]);
+			//double tmpW_H = W0_H * pow(A0[i] / At[i] , 2.0);
+			double tmpW_H = W0_H * sqrt(A0[i] / At[i]);
 			//W_H[i] = W0_H * sqrt(A0[i] / At[i]);
 			if (tmpW_H > W_H[i]) {
 				W_H[i] = tmpW_H;
 			}
 		}
-		this->degeneration_vertices.push_back(degeneration_points);
+		record_vertices.push_back(degeneration_points);
 	}
 }
-
-void MyMesh::degenerationMeshToLine(std::vector<MyMesh::Point>& origin_vertices)
+void MyMesh::degenerationMeshToLine(
+	std::vector<std::vector<unsigned int>>& degeneration_indices, std::vector<MyMesh::Point>& origin_vertices)
 {
 	add_property(prop_sk_vl, "prop_sk_vl");// vertex adjacent len
 	add_property(prop_sk_vQ, "prop_sk_vQ");//
@@ -642,7 +659,7 @@ void MyMesh::degenerationMeshToLine(std::vector<MyMesh::Point>& origin_vertices)
 	use_last = false;
 
 	degeneration_indices.clear();
-	
+
 	std::vector<unsigned int> indices;
 	for (auto hes_it = outHalfedges.begin(); hes_it != outHalfedges.end(); ++hes_it) {
 		std::vector<MyMesh::SKHalfedge>& halfedges = hes_it->second;
@@ -685,7 +702,7 @@ void MyMesh::degenerationMeshToLine(std::vector<MyMesh::Point>& origin_vertices)
 	for (auto& ofaces : outFaces) {
 		count += ofaces.second.size();
 	}
-	std::cout << "\n faces: " << sk_face_count  << " "<< count << std::endl;
+	std::cout << "\n faces: " << sk_face_count << " " << count << std::endl;
 	// embedding refinement
 	std::map<VertexHandle, Point> displacements;
 	for (auto& bound : boundaries) {
@@ -722,7 +739,7 @@ void MyMesh::degenerationMeshToLine(std::vector<MyMesh::Point>& origin_vertices)
 	for (auto v_it = sk_vertices.begin(); v_it != sk_vertices.end(); ++v_it) {
 		VertexHandle v_h = *v_it;
 		Point u = point(v_h);
-		
+
 		Point d = displacements[v_h];
 
 		std::vector<SKHalfedge>& halfedges = outHalfedges[v_h];
@@ -736,7 +753,6 @@ void MyMesh::degenerationMeshToLine(std::vector<MyMesh::Point>& origin_vertices)
 	}
 
 }
-
 bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices,
 	std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, std::map<VertexHandle, std::vector<SKFace>>& of_map,
 	std::map < VertexHandle, std::vector<VertexHandle>>& boundary_map)
@@ -849,7 +865,6 @@ void MyMesh::initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfe
 
 	this->property(prop_sk_vQ, v_h) = Q;
 }
-
 void MyMesh::computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, MyMesh::VertexHandle v_h)
 {
 	Point p = point(v_h);
@@ -863,7 +878,6 @@ void MyMesh::computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>
 
 	this->property(prop_sk_vl, v_h) = adj;
 }
-
 void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 {
 	const double w_a = 1000.0;
@@ -890,7 +904,6 @@ void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
 
 	sk_he_it->cost = w_a * Fa + w_b * Fb;
 }
-
 bool MyMesh::edge_is_collapse_ok(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 	std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, std::vector<SKHalfedge>::iterator sk_he_it)
 {
@@ -940,7 +953,7 @@ bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 				halfedges1.push_back(SKHalfedge(v_h1, he_it0->to));
 				halfedges0_i.push_back(SKHalfedge(he_it0->to, v_h1));
 			}
-			
+
 		}
 	}
 	ohe_map.erase(v0_he_iter);
@@ -981,7 +994,7 @@ bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 
 			tmpFace.from = of_it0->to[0];
 			tmpFace.to[0] = of_it0->to[1];
-			tmpFace.to[1] = v_h1; 
+			tmpFace.to[1] = v_h1;
 			outfaces0_0.push_back(tmpFace);
 			sk_face_count += 1;
 
@@ -1035,48 +1048,60 @@ bool GLMesh::Init(std::string fileName)
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 
-		std::vector<MyMesh::Point> vertices;
-		std::vector<MyMesh::Normal> normals;
-		//vertices.reserve(mesh.n_vertices());
-		//normals.reserve(mesh.n_vertices());
-		for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
-		{
-			vertices.push_back(mesh.point(*v_it));
-			normals.push_back(mesh.normal(*v_it));
-		}
-
-		std::vector<unsigned int> indices;
-		//indices.reserve(mesh.n_faces() * 3);
-		for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
-		{
-			for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
-			{
-				indices.push_back(fv_it->idx());
-			}
-		}
 		//std::cout << "vertex number: " << mesh.n_vertices() << std::endl;
 		//std::cout << "edge number: " << mesh.n_edges() << std::endl;
 		//std::cout << "half edge number: " << mesh.n_halfedges() << std::endl;
 		//std::cout << "face number: " << mesh.n_faces() << std::endl;
 
-		LoadToShader(vertices, normals, indices);
+		for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
+		{
+			initial_vertices.push_back(mesh.point(*v_it));
+			initial_normals.push_back(mesh.normal(*v_it));
+		}
+		for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
+			for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
+				initial_indices.push_back(fv_it->idx());
+
+		LoadToShader(initial_vertices, initial_normals, initial_indices);
+
+		{
+			glGenVertexArrays(1, &this->skeleton.vao);
+			glBindVertexArray(this->skeleton.vao);
+
+			glGenBuffers(3, this->skeleton.vbo);
+
+			glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[0]);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+			glEnableVertexAttribArray(0);
+
+			glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[1]);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+			glEnableVertexAttribArray(1);
+
+			glGenBuffers(1, &this->skeleton.ebo);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->skeleton.ebo);
+
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+			glBindVertexArray(0);
+		}
+	
 		return true;
 	}
 	return false;
 }
 
-void GLMesh::Render()
+void GLMesh::renderMesh()
 {
 	glBindVertexArray(this->vao.vao);
-
-	if(this->render_mode == 0)
-		glDrawElements(GL_TRIANGLES, this->vao.element_amount, GL_UNSIGNED_INT, 0);
-	else
-		glDrawElements(GL_LINES, this->vao.element_amount, GL_UNSIGNED_INT, 0);
-
+	glDrawElements(GL_TRIANGLES, this->vao.element_amount, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
 }
-
+void GLMesh::renderSkeleton()
+{
+	glBindVertexArray(this->skeleton.vao);
+	glDrawElements(GL_LINES, this->skeleton.element_amount, GL_UNSIGNED_INT, 0);
+	glBindVertexArray(0);
+}
 
 bool GLMesh::LoadModel(std::string fileName)
 {
@@ -1098,11 +1123,27 @@ bool GLMesh::LoadModel(std::string fileName)
 	return false;
 }
 
-void GLMesh::LoadToShader(
-	std::vector<MyMesh::Point>& vertices, std::vector<MyMesh::Normal>& normals, std::vector<unsigned int>& indices, int mode)
+void GLMesh::LoadToShader()
 {
-	this->render_mode = mode;
+	std::vector<MyMesh::Point> vertices;
+	std::vector<MyMesh::Normal> normals;
+	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
+	{
+		vertices.push_back(mesh.point(*v_it));
+		normals.push_back(mesh.normal(*v_it));
+	}
+	std::vector<unsigned int> indices;
+	for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
+		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
+			indices.push_back(fv_it->idx());
 
+	LoadToShader(vertices, normals, indices);
+}
+void GLMesh::LoadToShader(
+	std::vector<MyMesh::Point>& vertices,
+	std::vector<MyMesh::Normal>& normals,
+	std::vector<unsigned int>& indices)
+{
 	this->vao.element_amount = indices.size();
 
 	glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[0]);
@@ -1144,51 +1185,47 @@ void GLMesh::LoadTexCoordToShader()
 		glBindVertexArray(0);
 	}
 }
+void GLMesh::simplification()
+{
+	for (int i(0); i < simplification_vertices.size(); i++)
+	{
+		simplification_vertices[i].clear();
+		simplification_normals[i].clear();
+		simplification_indices[i].clear();
+	}
+	simplification_vertices.clear();
+	simplification_normals.clear();
+	simplification_indices.clear();
+
+	mesh.simplification(
+		simplification_vertices,
+		simplification_normals,
+		simplification_indices);
+
+	simplification(0.0f);
+}
 
 void GLMesh::simplification(float ratio)
 {
-	if (mesh.record_vertices.empty())
-		mesh.simplification();
+	if (simplification_vertices.empty())
+		return;
 
-	int idx = (int)((1.0f - ratio) * (mesh.record_vertices.size()-1));
+	int idx = (int)((1.0f - ratio) * (simplification_vertices.size() - 1));
 	//reload
-	LoadToShader(
-		mesh.record_vertices[idx],
-		mesh.record_normals[idx],
-		mesh.record_indices[idx]);
+	mesh.reloadMesh(simplification_vertices[idx], simplification_indices[idx]);
+	LoadToShader();
 }
-bool GLMesh::exportSimplificationMesh(float ratio)
+void GLMesh::resetMesh()
 {
-	if (mesh.record_vertices.empty())
-	{
-		puts("Not yet simplified");
-		return false;
-	}
-
-
-	int idx = (int)((1.0f - ratio) * (mesh.record_vertices.size() - 1));
-
-	MyMesh new_mesh;
-
-	std::vector<MyMesh::VertexHandle> v_handles;
-	for (OpenMesh::Vec3f v : mesh.record_vertices[idx])
-	{
-		v_handles.push_back(new_mesh.add_vertex(v));
-	}
-	std::vector<MyMesh::VertexHandle>  face_vhandles;
-	for (int i = 0 ; i < mesh.record_indices[idx].size(); i+=3)
-	{
-		face_vhandles.clear();
-		face_vhandles.push_back(v_handles[mesh.record_indices[idx][i]]);
-		face_vhandles.push_back(v_handles[mesh.record_indices[idx][i+1]]);
-		face_vhandles.push_back(v_handles[mesh.record_indices[idx][i+2]]);
-		new_mesh.add_face(face_vhandles);
-	}
-
+	mesh.reloadMesh(initial_vertices, initial_indices);
+	LoadToShader();
+}
+bool GLMesh::exportMesh()
+{
 	// write mesh to output.obj
 	try
 	{
-		if (!OpenMesh::IO::write_mesh(new_mesh, "output.obj"))
+		if (!OpenMesh::IO::write_mesh(mesh, "output.obj"))
 		{
 			std::cerr << "Cannot write mesh to file 'output.off'" << std::endl;
 			return false;
@@ -1205,11 +1242,9 @@ bool GLMesh::exportSimplificationMesh(float ratio)
 void GLMesh::generateLeastSquareMesh(int control_num)
 {
 	std::vector<MyMesh::Point> vertices;
-	std::vector<MyMesh::Normal> normals;
 	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
 	{
 		vertices.push_back(mesh.point(*v_it));
-		normals.push_back(mesh.normal(*v_it));
 	}
 	std::vector<unsigned int> indices;
 	for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
@@ -1217,88 +1252,87 @@ void GLMesh::generateLeastSquareMesh(int control_num)
 			indices.push_back(fv_it->idx());
 
 	mesh.generateLeastSquareMesh(vertices, control_num);
+	mesh.reloadMesh(vertices, indices);
 
-	LoadToShader(vertices, normals, indices);
+	LoadToShader();
+}
+
+void GLMesh::degenerateLeastSquareMesh()
+{
+	for (auto& d : degeneration_vertices)
+		d.clear();
+	degeneration_vertices.clear();
+	degeneration_indices.clear();
+
+	mesh.degenerateLeastSquareMesh(degeneration_vertices, 0.001, 1.0, 4.0, 20);
+
+	for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
+		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
+			degeneration_indices.push_back(fv_it->idx());
+
+	degenerateLeastSquareMesh(0.0f);
 }
 
 void GLMesh::degenerateLeastSquareMesh(float ratio)
 {
-	std::vector<MyMesh::Normal> normals;
-	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
-	{
-		normals.push_back(mesh.normal(*v_it));
-	}
-	std::vector<unsigned int> indices;
-	for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
-		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
-			indices.push_back(fv_it->idx());
-
-	if (mesh.degeneration_vertices.empty())
-		mesh.degenerateLeastSquareMesh(0.001, 1.0, 4.0, 20);
-
-	int idx = (int)((1.0f - ratio) * (mesh.degeneration_vertices.size() - 1));
-
-	std::cout << "idx : " << idx << "      \r";
-	//reload
-	LoadToShader(
-		mesh.degeneration_vertices[idx],
-		normals,
-		indices);
-}
-
-void GLMesh::degenerationMeshToLineSlider(float ratio)
-{
-	if (deg_simp_mesh.degeneration_indices.empty())
-	{
-		puts("Not yet simplified");
+	if (degeneration_vertices.empty())
 		return;
-	}
 
-	int idx = (int)((1.0f - ratio) * (deg_simp_mesh.degeneration_indices.size() - 1));
+	int idx = (int)((1.0f - ratio) * (degeneration_vertices.size() - 1));
 
-	std::vector<MyMesh::Point> vertices;
-	std::vector<MyMesh::Normal> normals;
-	for (MyMesh::VertexIter v_it = deg_simp_mesh.vertices_begin(); v_it != deg_simp_mesh.vertices_end(); ++v_it)
-	{
-		vertices.push_back(deg_simp_mesh.point(*v_it));
-		normals.push_back(mesh.normal(*v_it));
-	}
-
-	LoadToShader(vertices, normals, deg_simp_mesh.degeneration_indices[idx], 1);
-
+	//reload
+	mesh.reloadMesh(degeneration_vertices[idx], degeneration_indices);
+	LoadToShader();
 }
 
 void GLMesh::degenerationMeshToLine(float ratio)
 {
-	if (mesh.degeneration_vertices.empty())
+	if (skeleton_indices.empty())
 	{
-		puts("Not yet simplified");
 		return;
 	}
 
-	int idx = (int)((1.0f - ratio) * (mesh.degeneration_vertices.size() - 1));
-	std::cout << "\nstart with idx = " << idx << std::endl;
+	int idx = (int)((1.0f - ratio) * (skeleton_indices.size() - 1));
 
-	deg_simp_mesh.clear();
+	this->skeleton.element_amount = skeleton_indices[idx].size();
 
-	std::vector<MyMesh::VertexHandle> v_handles;
-	for (OpenMesh::Vec3f v : mesh.degeneration_vertices[idx])
+	glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Point) * skeleton_vertices.size(), &skeleton_vertices[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Normal) * skeleton_normal.size(), &skeleton_normal[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->skeleton.ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * skeleton_indices[idx].size(), &skeleton_indices[idx][0], GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+}
+
+void GLMesh::degenerationMeshToLine()
+{
+	if (degeneration_vertices.empty())
+		return;
+
+	for (auto& s : this->skeleton_indices)
+		s.clear();
+	this->skeleton_indices.clear();
+	this->skeleton_vertices.clear();
+	this->skeleton_normal.clear();
+	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
 	{
-		v_handles.push_back(deg_simp_mesh.add_vertex(v));
-	}
-	std::vector<MyMesh::VertexHandle>  face_vhandles;
-
-	for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it) {
-		face_vhandles.clear();
-		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it) {
-			face_vhandles.push_back(v_handles[fv_it->idx()]);
-		}
-		deg_simp_mesh.add_face(face_vhandles);
+		skeleton_vertices.push_back(mesh.point(*v_it));
+		skeleton_normal.push_back(mesh.normal(*v_it));
 	}
 
-	deg_simp_mesh.degenerationMeshToLine(mesh.degeneration_vertices[0]);
+	mesh.degenerationMeshToLine(skeleton_indices, initial_vertices);
 
-	this->degenerationMeshToLineSlider(0);
+	this->degenerationMeshToLine(0);
 }
 
 #pragma endregion
