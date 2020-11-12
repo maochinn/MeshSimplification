@@ -1024,6 +1024,47 @@ bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
 
 GLMesh::GLMesh()
 {
+	this->vao.element_amount = 0;
+
+	glGenVertexArrays(1, &this->vao.vao);
+	glBindVertexArray(this->vao.vao);
+
+	glGenBuffers(3, this->vao.vbo);
+
+	glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[0]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[1]);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+
+	glGenBuffers(1, &this->vao.ebo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vao.ebo);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	this->skeleton.element_amount = 0;
+
+	glGenVertexArrays(1, &this->skeleton.vao);
+	glBindVertexArray(this->skeleton.vao);
+
+	glGenBuffers(3, this->skeleton.vbo);
+
+	glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[0]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[1]);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+
+	glGenBuffers(1, &this->skeleton.ebo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->skeleton.ebo);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 
 GLMesh::~GLMesh()
@@ -1035,25 +1076,6 @@ bool GLMesh::Init(std::string fileName)
 {
 	if (LoadModel(fileName))
 	{
-		glGenVertexArrays(1, &this->vao.vao);
-		glBindVertexArray(this->vao.vao);
-
-		glGenBuffers(3, this->vao.vbo);
-
-		glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[0]);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(0);
-
-		glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[1]);
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(1);
-
-		glGenBuffers(1, &this->vao.ebo);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vao.ebo);
-
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glBindVertexArray(0);
-
 		//std::cout << "vertex number: " << mesh.n_vertices() << std::endl;
 		//std::cout << "edge number: " << mesh.n_edges() << std::endl;
 		//std::cout << "half edge number: " << mesh.n_halfedges() << std::endl;
@@ -1069,27 +1091,6 @@ bool GLMesh::Init(std::string fileName)
 				initial_indices.push_back(fv_it->idx());
 
 		LoadToShader(initial_vertices, initial_normals, initial_indices);
-
-		{
-			glGenVertexArrays(1, &this->skeleton.vao);
-			glBindVertexArray(this->skeleton.vao);
-
-			glGenBuffers(3, this->skeleton.vbo);
-
-			glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[0]);
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-			glEnableVertexAttribArray(0);
-
-			glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[1]);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-			glEnableVertexAttribArray(1);
-
-			glGenBuffers(1, &this->skeleton.ebo);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->skeleton.ebo);
-
-			glBindBuffer(GL_ARRAY_BUFFER, 0);
-			glBindVertexArray(0);
-		}
 	
 		return true;
 	}
