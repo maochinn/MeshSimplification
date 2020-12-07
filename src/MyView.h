@@ -79,6 +79,7 @@ public:
 	virtual int handle(int);
 	virtual void draw();
 	virtual void resize(int, int, int, int);
+
 	void doPick(int,int);
 	// setup the projection - assuming that the projection stack has been
 	// cleared for you
@@ -94,6 +95,11 @@ public:
 	int				selectedCube;  // simple - just remember which cube is selected
 
 	MyWindow* mw;				// The parent of this display window
+
+	bool do_pick = false;
+	bool is_picking = false;
+	int pick_x;
+	int pick_y;
 
 	Shader* commom_shader = nullptr;
 	UBO* commom_matrices = nullptr;

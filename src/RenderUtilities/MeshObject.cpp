@@ -348,7 +348,7 @@ void MyMesh::Compilation()
 	std::cout << 0 << std::endl;
 	const int N_V(n_vertices());
 
-	C1 = Eigen::SparseMatrix<double>(controlPoints.size(), N_V * 2); // solve x,y together
+	C1 = Eigen::SparseMatrix<double>(controlPoints.size() * 2, N_V * 2); // solve x,y together
 	C2 = Eigen::SparseMatrix<double>(controlPoints.size(), N_V); // solve x, y respectively
 
 	CC1 = Eigen::SparseMatrix<double>(N_V * 2, N_V * 2); // solve x,y together

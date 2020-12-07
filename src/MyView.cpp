@@ -103,7 +103,11 @@ int MyView::handle(int event)
 		last_push = Fl::event_button();
 		// if the left button be pushed is left mouse button
 		if (last_push == FL_LEFT_MOUSE) {
-			doPick(Fl::event_x(), Fl::event_y());
+			if (!is_picking) {
+				do_pick = true;
+				pick_x = Fl::event_x();
+				pick_y = Fl::event_y();
+			}
 			damage(1);
 			return 1;
 		};
@@ -158,14 +162,14 @@ void MyView::draw()
 	{
 		//initiailize VAO, VBO, Shader...
 
-		std::string common_lib = Shader::readCode("../MeshSimplification/src/shaders/common_lib.glsl");
-		std::string material_lib = Shader::readCode("../MeshSimplification/src/shaders/material_lib.glsl");
+		std::string common_lib = Shader::readCode("../../src/shaders/common_lib.glsl");
+		std::string material_lib = Shader::readCode("../../src/shaders/material_lib.glsl");
 
 		if (!this->commom_shader) {
 			this->commom_shader = new Shader(
-				common_lib + Shader::readCode("../MeshSimplification/src/shaders/simple.vert"),
+				common_lib + Shader::readCode("../../src/shaders/simple.vert"),
 				std::string(), std::string(), std::string(),
-				Shader::readCode("../MeshSimplification/src/shaders/simple.frag"));
+				Shader::readCode("../../src/shaders/simple.frag"));
 		}
 		if (!this->commom_matrices) {
 			this->commom_matrices = new UBO();
@@ -178,9 +182,9 @@ void MyView::draw()
 
 		if (!this->picking_shader) {
 			this->picking_shader = new Shader(
-				common_lib + Shader::readCode("../MeshSimplification/src/shaders/picking.vert"),
+				common_lib + Shader::readCode("../../src/shaders/picking.vert"),
 				std::string(), std::string(), std::string(),
-				Shader::readCode("../MeshSimplification/src/shaders/picking.frag"));
+				Shader::readCode("../../src/shaders/picking.frag"));
 			picking_tex.Init(w(), h());
 		}
 
@@ -239,6 +243,8 @@ void MyView::draw()
 
 	this->gl_mesh->renderControlPoints();
 
+	if(do_pick)
+		doPick(pick_x, pick_y);
 }
 
 void MyView::resize(int x, int y, int w, int h)
@@ -249,6 +255,9 @@ void MyView::resize(int x, int y, int w, int h)
 
 void MyView::doPick(int mx, int my)
 {
+	is_picking = true;
+	do_pick = false;
+
 	// bind picking
 	this->picking_shader->Use();
 	this->picking_tex.EnableWriting();
@@ -259,7 +268,6 @@ void MyView::doPick(int mx, int my)
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	setProjection();		// put the code to set up matrices here
-	glEnable(GL_DEPTH_TEST);
 
 	//
 	setUBO();
@@ -269,8 +277,7 @@ void MyView::doPick(int mx, int my)
 	glm::mat4 model_matrix = glm::mat4();
 	glUniformMatrix4fv(glGetUniformLocation(this->picking_shader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
 
-	if (mw->renderMeshButton->value())
-		this->gl_mesh->renderMesh();
+	this->gl_mesh->renderMesh();
 
 	this->picking_tex.DisableWriting();
 
@@ -304,6 +311,8 @@ void MyView::doPick(int mx, int my)
 	else {
 		std::cout << "Nope" << std::endl;
 	}
+
+	is_picking = false;
 }
 
 //************************************************************************
@@ -407,8 +416,8 @@ bool PickingTexture::Resize(unsigned int WindowWidth, unsigned int WindowHeight)
 
 	// Create the texture object for the primitive information buffer
 	glBindTexture(GL_TEXTURE_2D, m_pickingTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, WindowWidth, WindowHeight,
-		0, GL_RGB, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, WindowWidth, WindowHeight,
+		0, GL_RED, GL_FLOAT, NULL);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
 		m_pickingTexture, 0);
 
@@ -447,7 +456,7 @@ float PickingTexture::ReadPixel(unsigned int x, unsigned int y)
 	glReadBuffer(GL_COLOR_ATTACHMENT0);
 
 	float Pixel;
-	glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &Pixel);
+	glReadPixels(x, y, 1, 1, GL_RED, GL_FLOAT, &Pixel);
 
 	glReadBuffer(GL_NONE);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
