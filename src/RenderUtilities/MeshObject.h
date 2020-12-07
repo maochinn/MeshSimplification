@@ -47,9 +47,11 @@ public:
 	void Step1();
 	void Step2();
 
-	double W = 1000.0;
+	double W = 1000;
 
 	std::vector<ControlPoint> controlPoints;
+
+	Eigen::VectorXd V1, V2x, V2y;
 
 private:
 	Eigen::SparseMatrix<double> L1, L2, LL1, LL2;
@@ -57,11 +59,7 @@ private:
 	std::vector<Eigen::Triplet<double>> C1_triplets;
 	std::vector<Eigen::Triplet<double>> C2_triplets;
 
-	Eigen::VectorXd V1, V2x, V2y;
-
 	OpenMesh::EPropHandleT<Eigen::MatrixXd> prop_G;
-	//OpenMesh::EPropHandleT<float> prop_e;
-	//OpenMesh::VPropHandleT<float> prop_sk_ve;
 };
 
 class GLMesh
@@ -80,6 +78,12 @@ public:
 	void renderControlPoints();
 
 	void select(unsigned int, MyMesh::Point);
+
+	unsigned int select_id = -1;
+	void selectControlPoint(MyMesh::Point);
+
+	void dragControlPoint(MyMesh::Point);
+
 private:
 	MyMesh mesh;
 	VAO vao;

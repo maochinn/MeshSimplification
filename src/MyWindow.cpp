@@ -67,7 +67,7 @@ MyWindow(const int x, const int y)
 		togglify(renderMeshButton, 1);
 
 		renderSkeletonButton = new Fl_Button(730, pty, 65, 20, "Skeleton");
-		togglify(renderSkeletonButton, 0);
+		togglify(renderSkeletonButton, 1);
 
 		pty += 25;
 

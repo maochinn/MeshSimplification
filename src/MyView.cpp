@@ -110,7 +110,12 @@ int MyView::handle(int event)
 			}
 			damage(1);
 			return 1;
-		};
+		}
+		else if (last_push == FL_RIGHT_MOUSE) {
+			doSelect(Fl::event_x(), Fl::event_y());
+			damage(1);
+			return 1;
+		}
 		break;
 
 		// Mouse button release event
@@ -121,6 +126,11 @@ int MyView::handle(int event)
 
 		// Mouse button drag event
 	case FL_DRAG:
+		if (Fl::event_button() == FL_RIGHT_MOUSE) {
+			doDrag(Fl::event_x(), Fl::event_y());
+			damage(1);
+			return 1;
+		}
 		break;
 
 		// in order to get keyboard events, we need to accept focus
@@ -313,6 +323,64 @@ void MyView::doPick(int mx, int my)
 	}
 
 	is_picking = false;
+}
+
+void MyView::doSelect(int mx, int my)
+{
+	float mouseX = mx / (w() * 0.5f) - 1.0f;
+	float mouseY = my / (h() * 0.5f) - 1.0f;
+
+	glPushMatrix();
+
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	setProjection();
+
+	GLfloat modelViewMatrix[16];
+	glGetFloatv(GL_MODELVIEW_MATRIX, modelViewMatrix);
+
+	GLfloat projectionViewMatrix[16];
+	glGetFloatv(GL_PROJECTION_MATRIX, projectionViewMatrix);
+
+	glm::mat4 proj = glm::make_mat4(projectionViewMatrix);
+	glm::mat4 view = glm::make_mat4(modelViewMatrix);
+
+	glm::mat4 invVP = glm::inverse(proj * view);
+	glm::vec4 screenPos = glm::vec4(mouseX, -mouseY, 1.0f, 1.0f);
+	glm::vec4 worldPos = invVP * screenPos;
+
+	this->gl_mesh->selectControlPoint(MyMesh::Point(worldPos.x, 0, worldPos.z));
+
+	glPopMatrix();
+}
+
+void MyView::doDrag(int mx, int my)
+{
+	float mouseX = mx / (w() * 0.5f) - 1.0f;
+	float mouseY = my / (h() * 0.5f) - 1.0f;
+
+	glPushMatrix();
+
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	setProjection();
+
+	GLfloat modelViewMatrix[16];
+	glGetFloatv(GL_MODELVIEW_MATRIX, modelViewMatrix);
+
+	GLfloat projectionViewMatrix[16];
+	glGetFloatv(GL_PROJECTION_MATRIX, projectionViewMatrix);
+
+	glm::mat4 proj = glm::make_mat4(projectionViewMatrix);
+	glm::mat4 view = glm::make_mat4(modelViewMatrix);
+
+	glm::mat4 invVP = glm::inverse(proj * view);
+	glm::vec4 screenPos = glm::vec4(mouseX, -mouseY, 1.0f, 1.0f);
+	glm::vec4 worldPos = invVP * screenPos;
+
+	this->gl_mesh->dragControlPoint(MyMesh::Point(worldPos.x, 0, worldPos.z));
+
+	glPopMatrix();
 }
 
 //************************************************************************

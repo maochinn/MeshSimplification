@@ -81,6 +81,10 @@ public:
 	virtual void resize(int, int, int, int);
 
 	void doPick(int,int);
+
+	void doSelect(int, int);
+
+	void doDrag(int, int);
 	// setup the projection - assuming that the projection stack has been
 	// cleared for you
 	void setProjection();

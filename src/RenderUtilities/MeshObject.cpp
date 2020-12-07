@@ -46,6 +46,8 @@ MyMesh::MyMesh()
 	request_face_status();
 	request_edge_status();
 	request_halfedge_status();
+
+	this->add_property(prop_G, "prop_G");
 }
 
 MyMesh::~MyMesh()
@@ -109,8 +111,6 @@ void MyMesh::ClearMesh()
 
 void MyMesh::Registration()
 {
-	this->add_property(prop_G, "prop_G");
-	
 	// precompute L1, L2 and G
 	preComputeG();
 	preComputeL1();
@@ -125,22 +125,22 @@ void MyMesh::preComputeG()
 		int rows = (is_boundary(e_it) ? 6 : 8);
 		int row = 0;
 
-		Eigen::MatrixXd G = Eigen::MatrixXd::Zero(rows, 2);
+		Eigen::MatrixXd G(rows, 2);
 
 		HalfedgeHandle heh = halfedge_handle(e_it, 0);
 		MyMesh::Point pFrom = point(from_vertex_handle(heh));
 		G(row, 0) = pFrom[0];
-		G(row, 1) = pFrom[1];
+		G(row, 1) = pFrom[2];
 		row += 1;
-		G(row, 0) = pFrom[1];
+		G(row, 0) = pFrom[2];
 		G(row, 1) = -pFrom[0];
 		row += 1;
 
 		MyMesh::Point pTo = point(to_vertex_handle(heh));
 		G(row, 0) = pTo[0];
-		G(row, 1) = pTo[1];
+		G(row, 1) = pTo[2];
 		row += 1;
-		G(row, 0) = pTo[1];
+		G(row, 0) = pTo[2];
 		G(row, 1) = -pTo[0];
 		row += 1;
 
@@ -149,9 +149,9 @@ void MyMesh::preComputeG()
 		if (vh0 != MyMesh::InvalidVertexHandle) {
 			MyMesh::Point p0 = point(vh0);
 			G(row, 0) = p0[0];
-			G(row, 1) = p0[1];
+			G(row, 1) = p0[2];
 			row += 1;
-			G(row, 0) = p0[1];
+			G(row, 0) = p0[2];
 			G(row, 1) = -p0[0];
 			row += 1;
 		}
@@ -160,14 +160,13 @@ void MyMesh::preComputeG()
 		if (vh1 != MyMesh::InvalidVertexHandle) {
 			MyMesh::Point p1 = point(vh1);
 			G(row, 0) = p1[0];
-			G(row, 1) = p1[1];
+			G(row, 1) = p1[2];
 			row += 1;
-			G(row, 0) = p1[1];
+			G(row, 0) = p1[2];
 			G(row, 1) = -p1[0];
 		}
 
-		G = (G.transpose() * G).inverse() * G.transpose();
-		this->property(prop_G, e_it) = G;
+		this->property(prop_G, e_it) = (G.transpose() * G).inverse() * G.transpose();
 	}
 }
 
@@ -193,9 +192,9 @@ void MyMesh::preComputeL1()
 
 		// edge vector
 		MyMesh::Point from_to = point(vh_to) - point(vh_from);
-		Eigen::MatrixXd e(2, 2);
-		e << from_to[0], from_to[1],
-			from_to[1], -from_to[0];
+		Eigen::Matrix2d e;
+		e << from_to[0], from_to[2],
+			from_to[2], -from_to[0];
 
 		Eigen::MatrixXd h = Eigen::MatrixXd::Zero(2, cols);
 		h(0, 0) = -1;
@@ -295,6 +294,7 @@ void MyMesh::select(unsigned int face_ID, MyMesh::Point p)
 	cp.w[1] = i_area * a1;
 	cp.w[2] = i_area * a2;
 	cp.c = cp.w[0] * p0 + cp.w[1] * p1 + cp.w[2] * p2;
+	//cp.c = MyMesh::Point(0,0,0);
 
 	AddControlPoint(cp);
 }
@@ -345,23 +345,16 @@ void MyMesh::RemoveControlPoint(unsigned int idx)
 
 void MyMesh::Compilation()
 {
-	std::cout << 0 << std::endl;
 	const int N_V(n_vertices());
 
-	C1 = Eigen::SparseMatrix<double>(controlPoints.size() * 2, N_V * 2); // solve x,y together
-	C2 = Eigen::SparseMatrix<double>(controlPoints.size(), N_V); // solve x, y respectively
-
-	CC1 = Eigen::SparseMatrix<double>(N_V * 2, N_V * 2); // solve x,y together
-	CC2 = Eigen::SparseMatrix<double>(N_V, N_V); // solve x, y respectively
+	C1.resize(controlPoints.size() * 2, N_V * 2); // solve x,y together
+	C2.resize(controlPoints.size(), N_V); // solve x, y respectively
 
 	C1.setFromTriplets(C1_triplets.begin(), C1_triplets.end());
 	C2.setFromTriplets(C2_triplets.begin(), C2_triplets.end());
 
 	CC1 = C1.transpose() * C1;
 	CC2 = C2.transpose() * C2;
-
-	std::cout << 5 << std::endl;
-
 }
 
 unsigned int MyMesh::FindControlPoint(MyMesh::Point, double)
@@ -382,14 +375,15 @@ void MyMesh::Step1()
 	const int N_E(n_edges());
 	const int N_C(controlPoints.size());
 
-	Eigen::MatrixXd b1 = Eigen::MatrixXd::Zero(1, N_E * 2 + N_C * 2);
+	Eigen::MatrixXd b1 = Eigen::MatrixXd::Zero(N_E * 2 + N_C * 2, 1);
 
 	for (int i = 0; i < controlPoints.size(); i++) {
-		b1(0, N_E * 2 + i * 2) = controlPoints[i].c[0] * W;
-		b1(0, N_E * 2 + i * 2 + 1) =  controlPoints[i].c[1] * W;
+		b1(N_E * 2 + i * 2, 0) = controlPoints[i].c[0] * W;
+		b1(N_E * 2 + i * 2 + 1, 0) = controlPoints[i].c[2] * W;
 	}
 
-	Eigen::SparseMatrix<double, Eigen::RowMajor> A1(N_E * 2 + N_C * 2, N_V * 2);
+	Eigen::MatrixXd A1(N_E * 2 + N_C * 2, N_V * 2);
+	//Eigen::SparseMatrix<double, Eigen::RowMajor> A1(N_E * 2 + N_C * 2, N_V * 2);
 	A1.topRows(N_E * 2) = L1;
 	A1.bottomRows(N_C * 2) = C1;
 
@@ -406,8 +400,8 @@ void MyMesh::Step2()
 	const int N_E(n_edges());
 	const int N_C(controlPoints.size());
 
-	Eigen::MatrixXd b2x(1, N_E + N_C);
-	Eigen::MatrixXd b2y(1, N_E + N_C);
+	Eigen::MatrixXd b2x(N_E + N_C, 1);
+	Eigen::MatrixXd b2y(N_E + N_C, 1);
 
 	for (auto e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it) {
 
@@ -430,8 +424,6 @@ void MyMesh::Step2()
 		double c = 0;
 		double s = 0;
 
-		Eigen::VectorXd v(cols);
-
 		c += G(0, 0) * pFromX + G(0, 1) * pFromY;
 		s += G(1, 0) * pFromX + G(1, 1) * pFromY;
 
@@ -450,25 +442,32 @@ void MyMesh::Step2()
 		}
 		VertexHandle vh1 = opposite_he_opposite_vh(heh);
 		if (vh1 != MyMesh::InvalidVertexHandle) {
-			double p0X = V1(vh1.idx() * 2);
-			double p0Y = V1(vh1.idx() * 2 + 1);
-			c += G(0, v_row * 2) * p0X + G(0, v_row * 2 + 1) * p0Y;
-			s += G(1, v_row * 2) * p0X + G(1, v_row * 2 + 1) * p0Y;
+			double p1X = V1(vh1.idx() * 2);
+			double p1Y = V1(vh1.idx() * 2 + 1);
+			c += G(0, v_row * 2) * p1X + G(0, v_row * 2 + 1) * p1Y;
+			s += G(1, v_row * 2) * p1X + G(1, v_row * 2 + 1) * p1Y;
 		}
 
-		double norm = 1.0 / (c * c + s * s);
 		MyMesh::Point e = point(vh_to) - point(vh_from);
 
-		b2x(0, row) = (e[0] * c + e[1] * s) * norm;
-		b2y(0, row) = (e[1] * c - e[0] * s) * norm;
+		double det = (c * c + s * s);
+		if (det < 0.000001) {
+			b2x(row, 0) = e[0];
+			b2y(row, 0) = e[2];
+		}
+		else {
+			double norm = 1.0 / det;
+			b2x(row, 0) = (e[0] * c + e[2] * s) * norm;
+			b2y(row, 0) = (e[2] * c - e[0] * s) * norm;
+		}
 	}
 
 	for (int i = 0; i < controlPoints.size(); i++) {
-		b2x(0, N_E + i) = controlPoints[i].c[0] * W;
-		b2y(0, N_E + i) = controlPoints[i].c[1] * W;
+		b2x(N_E + i, 0) = controlPoints[i].c[0] * W;
+		b2y(N_E + i, 0) = controlPoints[i].c[2] * W;
 	}
 
-	Eigen::SparseMatrix<double, Eigen::RowMajor> A2(N_E + N_C, N_V);
+	Eigen::MatrixXd A2(N_E + N_C, N_V);
 	A2.topRows(N_E) = L2;
 	A2.bottomRows(N_C) = C2;
 
@@ -538,12 +537,17 @@ void GLMesh::renderMesh()
 void GLMesh::renderControlPoints()
 {
 	//glEnable(GL_PROGRAM_POINT_SIZE);
-	glColor3d(0, 0, 1);
 	glPointSize(10);
 	glEnable(GL_POINT_SMOOTH);
 	glBegin(GL_POINTS);
 	size_t n_controlPoints = this->mesh.controlPoints.size();
 	for (size_t i = 0; i < n_controlPoints; i++) {
+		if (i == select_id) {
+			glColor3d(0, 1, 1);
+		}
+		else {
+			glColor3d(1, 0, 1);
+		}
 		MyMesh::ControlPoint& cp = this->mesh.controlPoints[i];
 		glVertex3f(cp.c[0], 0, cp.c[2]);
 	}
@@ -555,6 +559,43 @@ void GLMesh::renderControlPoints()
 void GLMesh::select(unsigned int tri_ID, MyMesh::Point p)
 {
 	this->mesh.select(tri_ID, p);
+}
+
+void GLMesh::selectControlPoint(MyMesh::Point p)
+{
+	select_id = -1;
+	float min_d = 50;
+	size_t n_controlPoints = this->mesh.controlPoints.size();
+	for (size_t i = 0; i < n_controlPoints; i++) {
+		MyMesh::ControlPoint& cp = this->mesh.controlPoints[i];
+
+		float d = (cp.c - p).length();
+		if (d < min_d) {
+			min_d = d;
+			select_id = i;
+		}
+	}
+}
+
+void GLMesh::dragControlPoint(MyMesh::Point p)
+{
+	if (select_id == -1)
+		return;
+
+	this->mesh.controlPoints[select_id].c = p;
+
+	this->mesh.Compute();
+
+	std::vector<MyMesh::Point> vertices;
+	std::vector<MyMesh::Normal> normals;
+	std::vector<unsigned int> indices;
+	int N(mesh.n_vertices());
+	for (int i = 0; i < N; i++)
+	{
+		vertices.push_back(MyMesh::Point(this->mesh.V2x(i), 0, this->mesh.V2y(i)));
+	}
+
+	LoadToShader(vertices, normals, indices);
 }
 
 bool GLMesh::LoadModel(std::string fileName)
@@ -669,12 +710,12 @@ bool GLMesh::Load2DModel(std::string fileName)
 	std::cout << "Meshing..." << std::endl;
 	CGAL_Mesher mesher(cdt);
 	mesher.set_criteria(CGAL_Criteria(0.125, 0.05));
-	mesher.refine_mesh();
+	//mesher.refine_mesh();
 
 	std::cout << "Number of vertices: " << cdt.number_of_vertices() << std::endl;
 	std::cout << "Run Lloyd optimization...";
 
-	CGAL::lloyd_optimize_mesh_2(cdt, CGAL::parameters::max_iteration_number = 10);
+	//CGAL::lloyd_optimize_mesh_2(cdt, CGAL::parameters::max_iteration_number = 10);
 
 	if (!list_of_seeds.empty()) {
 		std::cout << "Meshing the domain..." << std::endl;
@@ -715,6 +756,9 @@ bool GLMesh::Load2DModel(std::string fileName)
 		}
 	}
 
+	mesh.InitCompilation();
+	mesh.Registration();
+
 	return true;
 }
 
@@ -739,21 +783,23 @@ void GLMesh::LoadToShader(
 	std::vector<MyMesh::Normal>& normals,
 	std::vector<unsigned int>& indices)
 {
-	this->vao.element_amount = indices.size();
-
-	glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Point) * vertices.size(), &vertices[0], GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[1]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Normal) * normals.size(), &normals[0], GL_STATIC_DRAW);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(1);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vao.ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * indices.size(), &indices[0], GL_STATIC_DRAW);
-
+	if (!vertices.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Point) * vertices.size(), &vertices[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(0);
+	}
+	if (!normals.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, this->vao.vbo[1]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Normal) * normals.size(), &normals[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(1);
+	}
+	if (!indices.empty()) {
+		this->vao.element_amount = indices.size();
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vao.ebo);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * indices.size(), &indices[0], GL_STATIC_DRAW);
+	}
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 }
