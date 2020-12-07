@@ -79,7 +79,7 @@ void idleCB(MyWindow* mw)
 void importCB(Fl_Widget*, MyWindow* mw)
 {
 	const char* fname =
-		fl_file_chooser("Pick a OBJ File", "*.obj", "../MeshSimplification/Models/neptune_50k_hk_normalize.obj");
+		fl_file_chooser("Pick a txt File", "*.txt", "./data/");
 	if (fname) {
 		mw->myView->gl_mesh->Init(fname);
 		mw->damageMe();
@@ -97,54 +97,4 @@ void resetCB(Fl_Widget*, MyWindow* mw)
 	mw->myView->gl_mesh->resetMesh();
 	mw->damageMe();
 }
-
-void simplificationCB(Fl_Widget*, MyWindow* mw)
-{
-	mw->myView->gl_mesh->simplification();
-	mw->damageMe();
-}
-void simplificationSlideCB(Fl_Widget*, MyWindow* mw)
-{
-	mw->myView->gl_mesh->simplification(mw->simplification_slider->value());
-	mw->damageMe();
-}
-
-void degenerationCB(Fl_Widget*, MyWindow* mw)
-{
-	mw->myView->gl_mesh->degenerateLeastSquareMesh(
-		mw->WL0->value(),
-		mw->WH0->value(),
-		mw->SL->value());
-	mw->damageMe();
-}
-void degenerationSlideCB(Fl_Widget*, MyWindow* mw)
-{
-	mw->myView->gl_mesh->degenerateLeastSquareMesh(mw->degeneration_slider->value());
-	mw->damageMe();
-}
-
-void SkeletonCB(Fl_Widget*, MyWindow* mw)
-{
-	mw->myView->gl_mesh->degenerationMeshToLine(
-		mw->SK_WA->value(),
-		mw->SK_WB->value()
-	);
-	mw->damageMe();
-}
-void SkeletonSlideCB(Fl_Widget*, MyWindow* mw)
-{
-	mw->myView->gl_mesh->degenerationMeshToLine(mw->degeneration_simplify_slider->value());
-	mw->damageMe();
-}
-
-//void doCB(Fl_Widget*, MyWindow* mw)
-//{
-//	mw->myView->gl_mesh->collispe();
-//	mw->damageMe();
-//}
-//void undoCB(Fl_Widget*, MyWindow* mw)
-//{
-//	mw->myView->gl_mesh->simplification();
-//	mw->damageMe();
-//}
 

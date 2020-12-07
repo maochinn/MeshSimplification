@@ -34,6 +34,8 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include "GL/glu.h"
 
 #include "MyView.h"
@@ -101,7 +103,7 @@ int MyView::handle(int event)
 		last_push = Fl::event_button();
 		// if the left button be pushed is left mouse button
 		if (last_push == FL_LEFT_MOUSE) {
-			//doPick();
+			doPick(Fl::event_x(), Fl::event_y());
 			damage(1);
 			return 1;
 		};
@@ -146,7 +148,6 @@ int MyView::handle(int event)
 //========================================================================
 void MyView::draw()
 {
-
 	//*********************************************************************
 	//
 	// * Set up basic opengl informaiton
@@ -160,8 +161,8 @@ void MyView::draw()
 		std::string common_lib = Shader::readCode("../MeshSimplification/src/shaders/common_lib.glsl");
 		std::string material_lib = Shader::readCode("../MeshSimplification/src/shaders/material_lib.glsl");
 
-		if (!this->shader) {
-			this->shader = new Shader(
+		if (!this->commom_shader) {
+			this->commom_shader = new Shader(
 				common_lib + Shader::readCode("../MeshSimplification/src/shaders/simple.vert"),
 				std::string(), std::string(), std::string(),
 				Shader::readCode("../MeshSimplification/src/shaders/simple.frag"));
@@ -175,98 +176,29 @@ void MyView::draw()
 			glBindBuffer(GL_UNIFORM_BUFFER, 0);
 		}
 
+		if (!this->picking_shader) {
+			this->picking_shader = new Shader(
+				common_lib + Shader::readCode("../MeshSimplification/src/shaders/picking.vert"),
+				std::string(), std::string(), std::string(),
+				Shader::readCode("../MeshSimplification/src/shaders/picking.frag"));
+			picking_tex.Init(w(), h());
+		}
+
 		if (!this->gl_mesh)
 		{
 			this->gl_mesh = new GLMesh();
-			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_200k_org.obj");
-			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_100k_hk_normalize.obj");
-			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk.obj");
-			//this->gl_mesh->Init("../MeshSimplification/Models/neptune_50k_hk_normalize.obj");
-			//this->gl_mesh->Init("../MeshSimplification/Models/dancer_25k_org.obj");
-			//this->gl_mesh->Init("../MeshSimplification/Models/sphere.obj");
-			//this->gl_mesh->Init("../MeshSimplification/Models/Cube.obj");
 			//this->gl_mesh->Init("D:/maochinn/NTUST/Course/DigitalMesh/project/build/output.obj");
-		}
-
-		if (!this->plane) {
-			GLfloat  vertices[] = {
-				-0.5f ,0.0f , -0.5f,
-				-0.5f ,0.0f , 0.5f ,
-				0.5f ,0.0f ,0.5f ,
-				0.5f ,0.0f ,-0.5f };
-			GLfloat  normal[] = {
-				0.0f, 1.0f, 0.0f,
-				0.0f, 1.0f, 0.0f,
-				0.0f, 1.0f, 0.0f,
-				0.0f, 1.0f, 0.0f };
-			GLfloat  texture_coordinate[] = {
-				0.0f, 0.0f,
-				1.0f, 0.0f,
-				1.0f, 1.0f,
-				0.0f, 1.0f };
-			GLuint element[] = {
-				0, 1, 2,
-				0, 2, 3, };
-
-			this->plane = new VAO;
-			this->plane->element_amount = sizeof(element) / sizeof(GLuint);
-			glGenVertexArrays(1, &this->plane->vao);
-			glGenBuffers(3, this->plane->vbo);
-			glGenBuffers(1, &this->plane->ebo);
-
-			glBindVertexArray(this->plane->vao);
-
-			// Position attribute
-			glBindBuffer(GL_ARRAY_BUFFER, this->plane->vbo[0]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-			glEnableVertexAttribArray(0);
-
-			// Normal attribute
-			glBindBuffer(GL_ARRAY_BUFFER, this->plane->vbo[1]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(normal), normal, GL_STATIC_DRAW);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-			glEnableVertexAttribArray(1);
-
-			// Texture Coordinate attribute
-			glBindBuffer(GL_ARRAY_BUFFER, this->plane->vbo[2]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(texture_coordinate), texture_coordinate, GL_STATIC_DRAW);
-			glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (GLvoid*)0);
-			glEnableVertexAttribArray(2);
-
-			//Element attribute
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->plane->ebo);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(element), element, GL_STATIC_DRAW);
-
-			// Unbind VAO
-			glBindVertexArray(0);
-		}
-
-		if (!this->texture)
-			this->texture = new Texture2D("../MeshSimplification/Images/church.png");
-
-		if (!this->skybox) {
-			this->skybox = new CubeMap(
-				Shader(
-					common_lib + Shader::readCode("../MeshSimplification/src/shaders/cubeMap.vert"),
-					std::string(), std::string(), std::string(),
-					material_lib + Shader::readCode("../MeshSimplification/src/shaders/cubeMap.frag")),
-				"../MeshSimplification/Images/skybox/right.jpg",
-				"../MeshSimplification/Images/skybox/left.jpg",
-				"../MeshSimplification/Images/skybox/top.jpg",
-				"../MeshSimplification/Images/skybox/bottom.jpg",
-				"../MeshSimplification/Images/skybox/back.jpg",
-				"../MeshSimplification/Images/skybox/front.jpg");
 		}
 	}
 	else
 		throw std::runtime_error("Could not initialize GLAD!");
 
+
 	// Set up the view port
 	glViewport(0, 0, w(), h());
 
 	// clear the window, be sure to clear the Z-Buffer too
-	glClearColor(0, 0, .3f, 0);		// background should be blue
+	glClearColor(0.958, 0.909, 0.871, 0);		// background should be blue
 
 	// we need to clear out the stencil buffer since we'll use
 	// it for shadows
@@ -284,41 +216,94 @@ void MyView::draw()
 	setUBO();
 	glBindBufferRange(GL_UNIFORM_BUFFER, /*binding point*/0, this->commom_matrices->ubo, 0, this->commom_matrices->size);
 
-	//bind shader
-	this->shader->Use();
-
+	// model position (0,0,0)
 	glm::mat4 model_matrix = glm::mat4();
-	//model_matrix = glm::scale(model_matrix, glm::vec3(0.1f, 0.1f, 0.1f));
-	//model_matrix = glm::translate(model_matrix, glm::vec3(98.5175, 250.207, 1045.73));
-	//model_matrix = glm::translate(model_matrix, glm::vec3(8.43839f, 1001.16f, -48.2004f));
-	glUniformMatrix4fv(glGetUniformLocation(this->shader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
-	//glUniform3fv(glGetUniformLocation(this->shader->Program, "u_color"), 1, &glm::vec3(0.0f, 1.0f, 0.0f)[0]);
-	//this->texture->bind(0);
-	//glUniform1i(glGetUniformLocation(this->shader->Program, "u_texture"), 0);
 
-	////bind VAO
-	//glBindVertexArray(this->plane->vao);
-	////glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	//glDrawElements(GL_TRIANGLES, this->plane->element_amount, GL_UNSIGNED_INT, 0);
-	////glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	////unbind VAO
-	//glBindVertexArray(0);
+	//bind shader
+	this->commom_shader->Use();
 
+	glUniformMatrix4fv(glGetUniformLocation(this->commom_shader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
+	glUniform3fv(glGetUniformLocation(this->commom_shader->Program, "u_color"), 1, &glm::vec3(.941f, .25f, .25f)[0]);
+	this->gl_mesh->renderMesh();
+	glDisable(GL_DEPTH_TEST);
+
+	glUniform3fv(glGetUniformLocation(this->commom_shader->Program, "u_color"), 1, &glm::vec3(.26f, .181f, .172f)[0]);
+	glLineWidth(1.38f);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-	if (mw->renderMeshButton->value())
-		this->gl_mesh->renderMesh();
-	if (mw->renderSkeletonButton->value())
-		this->gl_mesh->renderSkeleton();
-
+	this->gl_mesh->renderMesh();
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	//unbind VAO
-	glBindVertexArray(0);
 
-	this->skybox->render();
 
 	//unbind shader(switch to fixed pipeline)
 	glUseProgram(0);
+
+	this->gl_mesh->renderControlPoints();
+
+}
+
+void MyView::resize(int x, int y, int w, int h)
+{
+	Fl_Gl_Window::resize(x, y, w, h);
+	this->picking_tex.Resize(w, h);
+}
+
+void MyView::doPick(int mx, int my)
+{
+	// bind picking
+	this->picking_shader->Use();
+	this->picking_tex.EnableWriting();
+	glViewport(0, 0, w(), h());
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	// prepare for projection
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	setProjection();		// put the code to set up matrices here
+	glEnable(GL_DEPTH_TEST);
+
+	//
+	setUBO();
+	glBindBufferRange(GL_UNIFORM_BUFFER, /*binding point*/0, this->commom_matrices->ubo, 0, this->commom_matrices->size);
+
+	// model position (0,0,0)
+	glm::mat4 model_matrix = glm::mat4();
+	glUniformMatrix4fv(glGetUniformLocation(this->picking_shader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
+
+	if (mw->renderMeshButton->value())
+		this->gl_mesh->renderMesh();
+
+	this->picking_tex.DisableWriting();
+
+	glUseProgram(0);
+
+	float PrimID = this->picking_tex.ReadPixel(mx, h() - my - 1);
+	if (int(PrimID) > 0) {
+		std::cout << PrimID << std::endl;
+
+		// these positions must be in range [-1, 1] (!!!), not [0, width] and [0, height]
+		float mouseX = mx / (w() * 0.5f) - 1.0f;
+		float mouseY = my / (h() * 0.5f) - 1.0f;
+
+		GLfloat modelViewMatrix[16];
+		glGetFloatv(GL_MODELVIEW_MATRIX, modelViewMatrix);
+
+		GLfloat projectionViewMatrix[16];
+		glGetFloatv(GL_PROJECTION_MATRIX, projectionViewMatrix);
+
+		glm::mat4 proj = glm::make_mat4(projectionViewMatrix);
+		glm::mat4 view = glm::make_mat4(modelViewMatrix);
+
+		glm::mat4 invVP = glm::inverse(proj * view);
+		glm::vec4 screenPos = glm::vec4(mouseX, -mouseY, 1.0f, 1.0f);
+		glm::vec4 worldPos = invVP * screenPos;
+
+		std::cout << worldPos.x << " " << worldPos.y << " " << worldPos.z << " " << worldPos.w << std::endl;
+
+		this->gl_mesh->select(int(PrimID), MyMesh::Point(worldPos.x, 0 , worldPos.z));
+	}
+	else {
+		std::cout << "Nope" << std::endl;
+	}
 }
 
 //************************************************************************
@@ -379,4 +364,93 @@ void MyView::setUBO()
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), &view_matrix[0][0]);
 	glBufferSubData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), sizeof(glm::mat4), &glm::inverse(view_matrix)[0][0]);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+bool PickingTexture::Init(unsigned int WindowWidth, unsigned int WindowHeight)
+{
+	// Create the FBO
+	glGenFramebuffers(1, &m_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+
+	// Create the texture object for the primitive information buffer
+	glGenTextures(1, &m_pickingTexture);
+	glBindTexture(GL_TEXTURE_2D, m_pickingTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, WindowWidth, WindowHeight,
+		0, GL_RGB, GL_FLOAT, NULL);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+		m_pickingTexture, 0);
+
+	// Disable reading to avoid problems with older GPUs
+	glReadBuffer(GL_NONE);
+
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+	// Verify that the FBO is correct
+	GLenum Status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+	if (Status != GL_FRAMEBUFFER_COMPLETE) {
+		printf("FB error, status: 0x%x\n", Status);
+		return false;
+	}
+
+	// Restore the default framebuffer
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return true;
+}
+
+bool PickingTexture::Resize(unsigned int WindowWidth, unsigned int WindowHeight)
+{
+	// Create the FBO
+	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+
+	// Create the texture object for the primitive information buffer
+	glBindTexture(GL_TEXTURE_2D, m_pickingTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, WindowWidth, WindowHeight,
+		0, GL_RGB, GL_FLOAT, NULL);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+		m_pickingTexture, 0);
+
+	// Disable reading to avoid problems with older GPUs
+	glReadBuffer(GL_NONE);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+	// Verify that the FBO is correct
+	GLenum Status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+	if (Status != GL_FRAMEBUFFER_COMPLETE) {
+		printf("FB error, status: 0x%x\n", Status);
+		return false;
+	}
+
+	// Restore the default framebuffer
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return true;
+}
+
+void PickingTexture::EnableWriting()
+{
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_fbo);
+}
+
+void PickingTexture::DisableWriting()
+{
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+}
+
+float PickingTexture::ReadPixel(unsigned int x, unsigned int y)
+{
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, m_fbo);
+	glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+	float Pixel;
+	glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &Pixel);
+
+	glReadBuffer(GL_NONE);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+	return Pixel;
 }

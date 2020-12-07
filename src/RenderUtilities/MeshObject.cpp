@@ -1,7 +1,27 @@
 #include <map>
 #include <set>
 #include <algorithm>
+#include "opencv2/highgui.hpp"
+#include "opencv2/core.hpp"
+
+//#include "../CDT/include/CDT.h"
+//#include "../CDT/extras/VerifyTopology.h"
+
+#define CGAL_MESH_2_OPTIMIZER_VERBOSE
+//#define CGAL_MESH_2_OPTIMIZERS_DEBUG
+//#define CGAL_MESH_2_SIZING_FIELD_USE_BARYCENTRIC_COORDINATES
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Constrained_Delaunay_triangulation_2.h>
+#include <CGAL/Delaunay_mesher_2.h>
+#include <CGAL/Delaunay_mesh_face_base_2.h>
+#include <CGAL/Delaunay_mesh_vertex_base_2.h>
+#include <CGAL/Delaunay_mesh_size_criteria_2.h>
+#include <CGAL/lloyd_optimize_mesh_2.h>
+
 #include "MeshObject.h"
+
+#include <fstream>
+
 struct OpenMesh::VertexHandle const OpenMesh::PolyConnectivity::InvalidVertexHandle;
 
 template<class T>
@@ -25,7 +45,7 @@ MyMesh::MyMesh()
 	request_vertex_status();
 	request_face_status();
 	request_edge_status();
-	//request_halfedge_status();
+	request_halfedge_status();
 }
 
 MyMesh::~MyMesh()
@@ -86,936 +106,378 @@ void MyMesh::ClearMesh()
 		garbage_collection();
 	}
 }
-void MyMesh::computeErrorQuadrics(MyMesh::VertexHandle v_h)
+
+void MyMesh::Registration()
 {
-	Eigen::Matrix4d Q = Eigen::Matrix4d::Zero();
-	MyMesh::Point point = this->point(v_h);
-
-	for (MyMesh::VertexFaceIter vf_it = this->vf_iter(v_h); vf_it.is_valid(); ++vf_it) {
-		MyMesh::Normal normal = this->normal(vf_it);
-
-		float a = normal[0];
-		float b = normal[1];
-		float c = normal[2];
-		float d = -(a * point[0] + b * point[1] + c * point[2]);
-
-		Eigen::Matrix4d K;
-		K << a * a, a* b, a* c, a* d, \
-			a* b, b* b, b* c, b* d, \
-			a* c, b* c, c* c, c* d, \
-			a* d, b* d, c* d, d* d;
-
-		Q += K;
-	}
-	this->property(prop_Q, v_h) = Q;
+	this->add_property(prop_G, "prop_G");
+	
+	// precompute L1, L2 and G
+	preComputeG();
+	preComputeL1();
+	preComputeL2();
 }
 
-void MyMesh::computeErrorQuadrics()
+void MyMesh::preComputeG()
 {
-	this->add_property(prop_Q, "prop_Q");
+	// pre G
+	for (auto e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it) {
+		
+		int rows = (is_boundary(e_it) ? 6 : 8);
+		int row = 0;
 
-	for (MyMesh::VertexIter v_it = this->vertices_begin(); v_it != this->vertices_end(); ++v_it)
-	{
-		this->computeErrorQuadrics(v_it);
-	}
-}
+		Eigen::MatrixXd G = Eigen::MatrixXd::Zero(rows, 2);
 
-void MyMesh::computeError(MyMesh::EdgeHandle e_handle)
-{
-	Eigen::Matrix4d& Q1 = this->property(prop_Q, to_vertex_handle(halfedge_handle(e_handle, 0)));
-	Eigen::Matrix4d& Q2 = this->property(prop_Q, from_vertex_handle(halfedge_handle(e_handle, 0)));
+		HalfedgeHandle heh = halfedge_handle(e_it, 0);
+		MyMesh::Point pFrom = point(from_vertex_handle(heh));
+		G(row, 0) = pFrom[0];
+		G(row, 1) = pFrom[1];
+		row += 1;
+		G(row, 0) = pFrom[1];
+		G(row, 1) = -pFrom[0];
+		row += 1;
 
-	Eigen::Matrix4d Q = Q1 + Q2;
+		MyMesh::Point pTo = point(to_vertex_handle(heh));
+		G(row, 0) = pTo[0];
+		G(row, 1) = pTo[1];
+		row += 1;
+		G(row, 0) = pTo[1];
+		G(row, 1) = -pTo[0];
+		row += 1;
 
-	Eigen::Matrix4d dQ(Q);
-	dQ(3, 0) = 0;
-	dQ(3, 1) = 0;
-	dQ(3, 2) = 0;
-	dQ(3, 3) = 1;
-	double det = dQ.determinant();
-
-	Eigen::Vector4d V(0, 0, 0, 1);
-	float e = 0;
-
-	MyMesh::Point& p1 = this->point(to_vertex_handle(halfedge_handle(e_handle, 0)));
-	MyMesh::Point& p2 = this->point(from_vertex_handle(halfedge_handle(e_handle, 0)));
-
-	if (abs(det) < 0.01f)
-	{
-
-
-		Eigen::Vector4d V0((p1[0] + p2[0]) * 0.5f, (p1[1] + p2[1]) * 0.5f, (p1[2] + p2[2]) * 0.5f, 1);
-		Eigen::Vector4d V1(p1[0], p1[1], p1[2], 1);
-		Eigen::Vector4d V2(p2[0], p2[1], p2[2], 1);
-
-		float e0 = abs(V0.dot(Q * V0));
-		float e1 = abs(V1.dot(Q * V1));
-		float e2 = abs(V2.dot(Q * V2));
-
-		if (e0 > e1&& e0 > e2) {
-			V = V0;
-			e = e0;
-		}
-		else if (e1 > e2) {
-			V = V1;
-			e = e1;
-		}
-		else {
-			V = V2;
-			e = e2;
-		}
-	}
-	else
-	{
-		dQ = dQ.inverse().eval();
-		V << dQ(0, 3), dQ(1, 3), dQ(2, 3), 1;
-		e = abs(V.dot(Q * V));
-	}
-
-	this->property(prop_v, e_handle) = MyMesh::Point(V.x(), V.y(), V.z());
-	this->property(prop_e, e_handle) = e;
-}
-
-void MyMesh::computeError()
-{
-	this->add_property(prop_v, "prop_v");
-	this->add_property(prop_e, "prop_e");
-
-	for (MyMesh::EdgeIter e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it)
-	{
-		computeError(e_it.handle());
-	}
-}
-bool MyMesh::collapse()
-{
-	EdgeHandle e_handle;
-	float min = FLT_MAX;
-
-	bool found = false;
-
-	if (use_last) {
-		found = true;
-		e_handle = last_handle;
-		min = last_min;
-	}
-	else {
-		for (MyMesh::EdgeIter e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it)
-		{
-			if (!status(e_it).deleted()) {
-				float e = this->property(prop_e, e_it);
-				if (e < min)
-				{
-					HalfedgeHandle tmp_he_h = halfedge_handle(e_it, 0);
-					VertexHandle tmp_to = to_vertex_handle(tmp_he_h);
-
-					MyMesh::Point old_V = this->point(tmp_to);
-
-					MyMesh::Point tmp_V = this->property(prop_v, e_it);
-
-					set_point(tmp_to, tmp_V);
-					bool collapse_ok = is_collapse_ok(tmp_he_h);
-					set_point(tmp_to, old_V);
-
-					if (collapse_ok) {
-						found = true;
-						min = e;
-						e_handle = e_it;
-
-						if (min <= this->last_min) {
-							break;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if (!found) {
-		std::cout << "Break" << std::endl;
-		return false;
-	}
-
-	last_min = min;
-	use_last = false;
-
-	//print error
-	//std::cout << min << std::endl;
-
-	HalfedgeHandle he_handle = halfedge_handle(e_handle, 0);
-	VertexHandle from = from_vertex_handle(he_handle);
-	VertexHandle to = to_vertex_handle(he_handle);
-
-	MyMesh::Point V = this->property(prop_v, e_handle);
-
-	set_point(to, V);
-
-	this->TriMesh::collapse(he_handle);
-
-	//garbage_collection();
-
-	//recompute quadrics & edge errors
-	std::set<MyMesh::EdgeHandle> recalc_edges;
-
-	this->property(prop_Q, to) = this->property(prop_Q, to) + this->property(prop_Q, from);
-
-	for (MyMesh::VertexVertexIter vv_it = vv_iter(to); vv_it.is_valid(); ++vv_it)
-	{
-		if (!status(vv_it).deleted()) {
-			for (MyMesh::VertexEdgeIter ve_it = ve_iter(vv_it); ve_it.is_valid(); ++ve_it)
-			{
-				if (!status(ve_it).deleted()) {
-					recalc_edges.insert(ve_it);
-				}
-			}
-		}
-	}
-	for (MyMesh::EdgeHandle e_h : recalc_edges)
-	{
-		computeError(e_h);
-		float e = this->property(prop_e, e_h);
-		if (e <= last_min)
-		{
-			HalfedgeHandle tmp_he_h = halfedge_handle(e_h, 0);
-			VertexHandle tmp_to = to_vertex_handle(tmp_he_h);
-
-			MyMesh::Point old_V = this->point(tmp_to);
-
-			MyMesh::Point tmp_V = this->property(prop_v, e_h);
-
-			set_point(tmp_to, tmp_V);
-			bool collapse_ok = is_collapse_ok(tmp_he_h);
-			set_point(tmp_to, old_V);
-
-			if (collapse_ok) {
-				found = true;
-				last_min = e;
-				last_handle = e_h;
-			}
+		// boundary check
+		VertexHandle vh0 = opposite_vh(heh);
+		if (vh0 != MyMesh::InvalidVertexHandle) {
+			MyMesh::Point p0 = point(vh0);
+			G(row, 0) = p0[0];
+			G(row, 1) = p0[1];
+			row += 1;
+			G(row, 0) = p0[1];
+			G(row, 1) = -p0[0];
+			row += 1;
 		}
 
-	}
-
-	return true;
-}
-void MyMesh::recordSimplification(
-	std::vector<std::vector<MyMesh::Point>>& record_vertices,
-	std::vector<std::vector<MyMesh::Normal>>& record_normals,
-	std::vector<std::vector<unsigned int>>& record_indices)
-{
-	std::vector<MyMesh::Point> points;
-	std::vector<MyMesh::Normal> normals;
-	std::vector<unsigned int> indices;
-
-	for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it)
-	{
-		points.push_back(point(*v_it));
-		//normals.push_back(normal(*v_it));
-		normals.push_back(Normal(0,1,0));
-	}
-	for (MyMesh::FaceIter f_it = faces_begin(); f_it != faces_end(); ++f_it)
-	{
-		for (MyMesh::FaceVertexIter fv_it = fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
-		{
-			indices.push_back(fv_it->idx());
+		VertexHandle vh1 = opposite_he_opposite_vh(heh);
+		if (vh1 != MyMesh::InvalidVertexHandle) {
+			MyMesh::Point p1 = point(vh1);
+			G(row, 0) = p1[0];
+			G(row, 1) = p1[1];
+			row += 1;
+			G(row, 0) = p1[1];
+			G(row, 1) = -p1[0];
 		}
-	}
-	record_vertices.push_back(points);
-	record_normals.push_back(normals);
-	record_indices.push_back(indices);
-}
 
-#include <time.h>
-void MyMesh::simplification(
-	std::vector<std::vector<MyMesh::Point>>& record_vertices,
-	std::vector<std::vector<MyMesh::Normal>>& record_normals,
-	std::vector<std::vector<unsigned int>>& record_indices)
-{
-	time_t total_s_time = 0;
-	time_t s_time = clock();
-
-	last_min = 0;
-	use_last = false;
-	last_handle = MyMesh::EdgeHandle();
-
-	if (record_vertices.empty())
-	{
-		int i = 0;
-		recordSimplification(record_vertices, record_normals, record_indices);
-		for (int j = 0; j < 200; j++)
-		{
-			int n = std::min(1499, (int)(n_edges() * 0.016)) + 1;
-			for (int k = 0; k < n; k++)
-			{
-				++i;
-				if (collapse() == false)
-				{
-					garbage_collection();
-					recordSimplification(record_vertices, record_normals, record_indices);
-					return;
-				}
-			}
-
-			garbage_collection();
-			recordSimplification(record_vertices, record_normals, record_indices);
-
-			time_t e_time = clock();
-			total_s_time += e_time - s_time;
-			std::cout << j << " : " << n << ", " << e_time - s_time << "ms , avg : " << total_s_time / float(i) << "ms                \r";
-			s_time = e_time;
-		}
+		G = (G.transpose() * G).inverse() * G.transpose();
+		this->property(prop_G, e_it) = G;
 	}
 }
 
-void MyMesh::generateLeastSquareMesh(std::vector<MyMesh::Point>& points, int control_num)
+void MyMesh::preComputeL1()
 {
-	//refer: https://github.com/shizsun0609tw/Least-Square-Meshes
+	const int N_E(n_edges());
+	const int N_V(n_vertices());
 
-	const int N(n_vertices());
+	L1 = Eigen::SparseMatrix<double>(N_E * 2, N_V * 2);
+	std::vector<Eigen::Triplet<double>> triplet_list_L1;
 
-	std::map<VertexHandle, int> vertices;
-	std::set<int> control_indexs;
-	std::vector<VertexHandle> control_points;
+	for (auto e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it) {
 
-	if (control_num > N)
-		control_num = N;
-	while (control_indexs.size() < control_num)
-	{
-		control_indexs.insert(rand() % N);
-	}
+		int cols = (is_boundary(e_it) ? 6 : 8);
+		int row = e_it->idx() * 2;
 
-	int idx(0);
-	for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it, ++idx)
-	{
-		vertices.insert(std::pair<VertexHandle, int>(v_it.handle(), idx));
-		//vertices[v_it.handle()] = idx;
-		if (control_indexs.find(idx) != control_indexs.end())
-		{
-			control_points.push_back(v_it.handle());
+		HalfedgeHandle heh = halfedge_handle(e_it, 0);
+
+		Eigen::MatrixXd& G = this->property(prop_G, e_it);
+
+		VertexHandle vh_from = from_vertex_handle(heh);
+		VertexHandle vh_to = to_vertex_handle(heh);
+
+		// edge vector
+		MyMesh::Point from_to = point(vh_to) - point(vh_from);
+		Eigen::MatrixXd e(2, 2);
+		e << from_to[0], from_to[1],
+			from_to[1], -from_to[0];
+
+		Eigen::MatrixXd h = Eigen::MatrixXd::Zero(2, cols);
+		h(0, 0) = -1;
+		h(0, 2) = 1;
+		h(1, 1) = -1;
+		h(1, 3) = 1;
+
+		h = h - (e * G);
+
+		int col = vh_from.idx() * 2;
+		int hcol = 0;
+		triplet_list_L1.push_back(Eigen::Triplet<double>(row, col, h(0, hcol)));
+		triplet_list_L1.push_back(Eigen::Triplet<double>(row, col+1, h(0, hcol+1)));
+		triplet_list_L1.push_back(Eigen::Triplet<double>(row+1, col, h(1, hcol)));
+		triplet_list_L1.push_back(Eigen::Triplet<double>(row+1, col+1, h(1, hcol+1)));
+
+		col = vh_to.idx() * 2;
+		hcol += 2;
+		triplet_list_L1.push_back(Eigen::Triplet<double>(row, col, h(0, hcol)));
+		triplet_list_L1.push_back(Eigen::Triplet<double>(row, col + 1, h(0, hcol + 1)));
+		triplet_list_L1.push_back(Eigen::Triplet<double>(row + 1, col, h(1, hcol)));
+		triplet_list_L1.push_back(Eigen::Triplet<double>(row + 1, col + 1, h(1, hcol + 1)));
+
+		// boundary check
+		VertexHandle vh0 = opposite_vh(heh);
+		if (vh0 != MyMesh::InvalidVertexHandle) {
+			col = vh0.idx() * 2;
+			hcol += 2;
+			triplet_list_L1.push_back(Eigen::Triplet<double>(row, col, h(0, hcol)));
+			triplet_list_L1.push_back(Eigen::Triplet<double>(row, col + 1, h(0, hcol + 1)));
+			triplet_list_L1.push_back(Eigen::Triplet<double>(row + 1, col, h(1, hcol)));
+			triplet_list_L1.push_back(Eigen::Triplet<double>(row + 1, col + 1, h(1, hcol + 1)));
+		}
+
+		VertexHandle vh1 = opposite_he_opposite_vh(heh);
+		if (vh1 != MyMesh::InvalidVertexHandle) {
+			col = vh1.idx() * 2;
+			hcol += 2;
+			triplet_list_L1.push_back(Eigen::Triplet<double>(row, col, h(0, hcol)));
+			triplet_list_L1.push_back(Eigen::Triplet<double>(row, col + 1, h(0, hcol + 1)));
+			triplet_list_L1.push_back(Eigen::Triplet<double>(row + 1, col, h(1, hcol)));
+			triplet_list_L1.push_back(Eigen::Triplet<double>(row + 1, col + 1, h(1, hcol + 1)));
 		}
 	}
 
-	const int M(control_points.size());
-
-	// Solve A.T Ax = A.T b
-	Eigen::SparseMatrix<double> A(N + M, N);
-	Eigen::SparseMatrix<double> b(N + M, 3);
-	std::vector<Eigen::Triplet<double>> triplet_list_A, triplet_list_b;
-
-	// Laplacian
-	for (auto it = vertices.begin(); it != vertices.end(); it++)
-	{
-		//i == j
-		int i = it->second;	//col
-		int j = it->second;	//row
-		triplet_list_A.push_back(Eigen::Triplet<double>(j, i, 1.0));
-
-		int d_j = 0;
-		for (MyMesh::VertexVertexIter vv_it = vv_iter(it->first); vv_it.is_valid(); ++vv_it)
-			d_j++;
-
-		for (MyMesh::VertexVertexIter vv_it = vv_iter(it->first); vv_it.is_valid(); ++vv_it)
-		{
-			i = vertices[vv_it];
-			triplet_list_A.push_back(Eigen::Triplet<double>(j, i, -1.0 / (double)d_j));
-		}
-	}
-
-	// Constraint
-	for (int j = 0; j < control_points.size(); j++)
-	{
-		int k = N + j;
-		int i = vertices[control_points[j]];	//index
-		MyMesh::Point c_point = point(control_points[j]);
-
-		triplet_list_A.push_back(Eigen::Triplet<double>(k, i, 1.0));
-
-		triplet_list_b.push_back(Eigen::Triplet<double>(k, 0, c_point[0]));
-		triplet_list_b.push_back(Eigen::Triplet<double>(k, 1, c_point[1]));
-		triplet_list_b.push_back(Eigen::Triplet<double>(k, 2, c_point[2]));
-	}
-
-	//fullfill A and b
-	A.setFromTriplets(triplet_list_A.begin(), triplet_list_A.end());
-	b.setFromTriplets(triplet_list_b.begin(), triplet_list_b.end());
-
-	Eigen::SparseMatrix<double> ATA = A.transpose() * A;
-	Eigen::SparseMatrix<double> ATb = A.transpose() * b;
-
-	//
-	Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver(ATA);
-	Eigen::MatrixXd x = solver.solve(ATb);
-
-	//
-	points.reserve(N);
-	for (auto it = vertices.begin(); it != vertices.end(); it++)
-	{
-		int idx = it->second;
-		points[idx][0] = x.row(idx).col(0).value();
-		points[idx][1] = x.row(idx).col(1).value();
-		points[idx][2] = x.row(idx).col(2).value();
-	}
+	L1.setFromTriplets(triplet_list_L1.begin(), triplet_list_L1.end());
+	LL1 = L1.transpose() * L1;
 }
 
-double MyMesh::computeLaplacianWeight(MyMesh::HalfedgeHandle& heh)
+void MyMesh::preComputeL2()
 {
-	GLdouble alpha, beta, weight;
-	MyMesh::Point pFrom = point(from_vertex_handle(heh));
-	MyMesh::Point pTo = point(to_vertex_handle(heh));
-	MyMesh::Point p1 = point(opposite_vh(heh));
-	MyMesh::Point p2 = point(opposite_he_opposite_vh(heh));
+	const int N_E(n_edges());
+	const int N_V(n_vertices());
 
-	OpenMesh::Vec3d v1 = (OpenMesh::Vec3d)(p1 - pFrom); v1.normalize();
-	OpenMesh::Vec3d v2 = (OpenMesh::Vec3d)(p1 - pTo); v2.normalize();
-	alpha = std::acos(clamp(OpenMesh::dot(v1, v2), -1.0, 1.0));
+	L2 = Eigen::SparseMatrix<double>(N_E, N_V);
+	std::vector<Eigen::Triplet<double>> triplet_list_L2;
 
-	Eigen::Vector3d v_1(v1[0], v1[1], v1[2]);
-	Eigen::Vector3d v_2(v2[0], v2[1], v2[2]);
+	for (auto e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it) {
 
-	v1 = (OpenMesh::Vec3d)(p2 - pFrom); v1.normalize();
-	v2 = (OpenMesh::Vec3d)(p2 - pTo); v2.normalize();
-	beta = std::acos(clamp(OpenMesh::dot(v1, v2), -1.0, 1.0));
+		int row = e_it->idx();
 
-	Eigen::Vector3d v_3(v1[0], v1[1], v1[2]);
-	Eigen::Vector3d v_4(v2[0], v2[1], v2[2]);
+		HalfedgeHandle heh = halfedge_handle(e_it, 0);
 
-	//if (std::sin(alpha) == 0 || std::sin(beta) == 0)
-		//	return FLT_MAX;
-		//return std::cos(alpha) / std::sin(alpha) + std::cos(beta) / std::sin(beta);
+		VertexHandle vh_from = from_vertex_handle(heh);
+		VertexHandle vh_to = to_vertex_handle(heh);
 
-	return cot(v_1, v_2) + cot(v_3, v_4);
-}
-void MyMesh::degenerateLeastSquareMesh(std::vector<std::vector<MyMesh::Point>>& record_vertices, double W0_L, double W0_H, double S_L, int iterations)
-{
-	//record initial
-	{
-		std::vector<MyMesh::Point> initial_points;
-		for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it)
-		{
-			initial_points.push_back(point(v_it));
-		}
-		record_vertices.push_back(initial_points);
+		triplet_list_L2.push_back(Eigen::Triplet<double>(row, vh_from.idx(), -1));
+		triplet_list_L2.push_back(Eigen::Triplet<double>(row, vh_to.idx(), 1));
 	}
 
-
-	const int N(n_vertices());
-	std::map<VertexHandle, int> vertices;
-	std::vector<double> A0(N), At(N);
-	{
-		int idx(0);
-		for (MyMesh::VertexIter v_it = vertices_begin(); v_it != vertices_end(); ++v_it, ++idx)
-		{
-			vertices.insert(std::make_pair(v_it.handle(), idx));
-			A0[idx] = 0.0;
-			for (MyMesh::VertexFaceIter vf_it = vf_iter(v_it); vf_it.is_valid(); ++vf_it)
-			{
-				A0[idx] += calc_face_area(vf_it);
-			}
-			At[idx] = A0[idx];
-		}
-	}
-
-	std::vector<double> W_H(N, W0_H);
-
-	double W_L(0.0);
-	double avg_face_area = 0.0;
-	for (auto it = faces_begin(); it != faces_end(); ++it)
-	{
-		avg_face_area += calc_face_area(it);
-	}
-	avg_face_area /= (double)n_faces();
-
-	W_L = W0_L * sqrt(avg_face_area);
-
-	//W_L = W0_L;
-	for (int t(0); t < iterations; t++)
-	{
-		std::vector<MyMesh::Point> degeneration_points;
-		degeneration_points.resize(N);
-
-		// using all vertices to be control points
-		Eigen::SparseMatrix<double> A(N + N, N);
-		Eigen::SparseMatrix<double> b(N + N, 3);
-
-		std::vector<Eigen::Triplet<double>> triplet_list_A, triplet_list_b, triplet_list_bx, triplet_list_by, triplet_list_bz;
-
-		for (auto it = vertices.begin(); it != vertices.end(); it++)
-		{
-			// Laplacian
-			int i = it->second;	//row
-			int j = it->second;	//col
-
-			double w_ij = 0.0;
-			for (MyMesh::VertexOHalfedgeIter voh_it = voh_iter(it->first); voh_it.is_valid(); ++voh_it)
-			{
-				double w_ik = computeLaplacianWeight(voh_it.handle());
-
-				int k = vertices[to_vertex_handle(voh_it)];
-				triplet_list_A.push_back(Eigen::Triplet<double>(i, k, W_L * w_ik));
-
-				w_ij += -w_ik;
-			}
-			triplet_list_A.push_back(Eigen::Triplet<double>(i, j, W_L * w_ij));
-
-			// Constraint
-			triplet_list_A.push_back(Eigen::Triplet<double>(N + i, j, W_H[i]));
-
-			MyMesh::Point vi = point(it->first);
-			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 0, W_H[i] * vi[0]));
-			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 1, W_H[i] * vi[1]));
-			triplet_list_b.push_back(Eigen::Triplet<double>(N + i, 2, W_H[i] * vi[2]));
-		}
-		//fullfill A and b
-		A.setFromTriplets(triplet_list_A.begin(), triplet_list_A.end());
-		b.setFromTriplets(triplet_list_b.begin(), triplet_list_b.end());
-
-		Eigen::SparseMatrix<double> ATA = A.transpose() * A;
-		Eigen::SparseMatrix<double> ATb = A.transpose() * b;
-
-		////
-		Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver(ATA);
-		Eigen::MatrixXd x = solver.solve(ATb);
-
-		std::cout << x(0, 0) << std::endl;
-		if (isnan(x(0, 0)))
-			return;
-
-		//update
-		W_L *= S_L;
-		for (auto it = vertices.begin(); it != vertices.end(); it++)
-		{
-			int i = it->second;
-			MyMesh::Point new_point(x(i, 0), x(i, 1), x(i, 2));
-
-			set_point(it->first, new_point);
-			degeneration_points[i] = new_point;
-		}
-
-		for (auto it = vertices.begin(); it != vertices.end(); it++)
-		{
-			int i = it->second;
-			At[i] = 0.0;
-			for (MyMesh::VertexFaceIter vf_it = vf_iter(it->first); vf_it.is_valid(); ++vf_it)
-			{
-				At[i] += calc_face_area(vf_it);
-			}
-
-			if (At[i] < 0.00000001) {
-				W_H[i] = W_L;
-			}
-			else {
-				//double tmpW_H = W0_H * pow(A0[i] / At[i], 3.0);
-				double tmpW_H = W0_H * sqrt(A0[i] / At[i]);
-				//W_H[i] = W0_H * sqrt(A0[i] / At[i]);
-				if (tmpW_H > W_H[i]) {
-					W_H[i] = tmpW_H;
-				}
-			}
-		}
-		record_vertices.push_back(degeneration_points);
-	}
-}
-void MyMesh::degenerationMeshToLine(std::vector<std::vector<unsigned int>>& degeneration_indices, std::vector<MyMesh::Point>& origin_vertices,
-	double w_a, double w_b)
-{
-
-	SK_WA = w_a;
-	SK_WB = w_b;
-
-	add_property(prop_sk_vl, "prop_sk_vl");// vertex adjacent len
-	add_property(prop_sk_vQ, "prop_sk_vQ");//
-
-	std::vector<MyMesh::VertexHandle> sk_vertices;
-	std::map< MyMesh::VertexHandle, std::vector<MyMesh::VertexHandle>> boundaries;
-	std::map<MyMesh::VertexHandle, std::vector<MyMesh::SKHalfedge>> outHalfedges;
-	std::map< MyMesh::VertexHandle, std::vector<SKFace>> outFaces;
-
-	sk_face_count = 0;
-
-	for (MyMesh::VertexIter v_it = this->vertices_begin(); v_it != this->vertices_end(); ++v_it) {
-		sk_vertices.push_back(v_it);
-		boundaries.insert(std::pair < MyMesh::VertexHandle, std::vector<MyMesh::VertexHandle>>(v_it, std::vector<MyMesh::VertexHandle>()));
-		initSKVertexErrorQuadric(outHalfedges, v_it); // only need to call this once for initialize
-		computeSKVertexError(outHalfedges, v_it); // update this
-	}
-	for (MyMesh::VertexIter v_it = this->vertices_begin(); v_it != this->vertices_end(); ++v_it) {
-		std::vector<SKHalfedge>& halfedges = outHalfedges[v_it];
-		for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-			computeSKEdgeCost(he_it); // update this
-		}
-
-		std::pair<std::map<VertexHandle, std::vector<SKFace>>::iterator, bool> ret;
-		ret = outFaces.insert(std::pair<VertexHandle, std::vector<SKFace>>(v_it, std::vector<SKFace>()));
-
-		std::vector<SKFace>& faces = ret.first->second;
-		SKFace tmpFace;
-		tmpFace.from = v_it;
-		for (auto vf_it = vf_iter(v_it); vf_it.is_valid(); ++vf_it) {
-			int idx = 0;
-			for (auto vfv_it = fv_iter(vf_it); vfv_it.is_valid(); ++vfv_it) {
-				if (vfv_it.handle() != v_it) {
-					tmpFace.to[idx] = vfv_it;
-					++idx;
-				}
-			}
-			faces.push_back(tmpFace);
-			sk_face_count += 1;
-		}
-	}
-
-	time_t total_s_time = 0;
-	time_t s_time = clock();
-
-	last_min = 0;
-	use_last = false;
-
-	degeneration_indices.clear();
-
-	std::vector<unsigned int> indices;
-	for (auto hes_it = outHalfedges.begin(); hes_it != outHalfedges.end(); ++hes_it) {
-		std::vector<MyMesh::SKHalfedge>& halfedges = hes_it->second;
-		for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-			indices.push_back(he_it->to.idx());
-			indices.push_back(he_it->from.idx());
-		}
-	}
-	degeneration_indices.push_back(indices);
-
-	int n = 100;
-	for (int j = 1; j <= n; j++)
-	{
-		for (int k = 0; k < 1000; k++) {
-			if (collapseToLine(sk_vertices, outHalfedges, outFaces, boundaries) == false)
-			{
-				j = n + 1;
-				break;
-			}
-		}
-		time_t e_time = clock();
-		total_s_time += e_time - s_time;
-		std::cout << j << ", " << e_time - s_time << "ms , avg : " << total_s_time / float(j) << "ms                \r";
-		s_time = e_time;
-
-		// store
-		indices.clear();
-		for (auto hes_it = outHalfedges.begin(); hes_it != outHalfedges.end(); ++hes_it) {
-			std::vector<MyMesh::SKHalfedge>& halfedges = hes_it->second;
-			for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-				indices.push_back(he_it->to.idx());
-				indices.push_back(he_it->from.idx());
-			}
-		}
-		degeneration_indices.push_back(indices);
-	}
-
-	int count = 0;
-	for (auto& ofaces : outFaces) {
-		count += ofaces.second.size();
-	}
-	std::cout << "\n faces: " << sk_face_count << " " << count << std::endl;
-	// embedding refinement
-	std::map<VertexHandle, Point> displacements;
-	for (auto& bound : boundaries) {
-		std::vector<VertexHandle>& v_loop = bound.second;
-		v_loop.push_back(bound.first);
-
-		Point disp(0, 0, 0);
-		double total = 0;
-		for (auto v_it = v_loop.begin(); v_it != v_loop.end(); ++v_it) {
-
-			VertexHandle v_h = *v_it;
-			Point p_c = point(v_h);
-			Point p_o = origin_vertices[v_it->idx()];
-
-			std::set<EdgeHandle> two_ring;
-			double length = 0;
-
-			for (VertexOHalfedgeIter voe_it = voh_iter(v_h); voe_it.is_valid(); ++voe_it) {
-				VertexHandle vov_h = to_vertex_handle(voe_it);
-				for (VertexEdgeIter vov_e_it = ve_iter(vov_h); vov_e_it.is_valid(); ++vov_e_it) {
-					two_ring.insert(vov_e_it.handle());
-				}
-			}
-
-			for (auto e_it = two_ring.begin(); e_it != two_ring.end(); ++e_it) {
-				length += calc_edge_length(*e_it);
-			}
-
-			total += length;
-			disp += length * (p_c - p_o);
-		}
-		displacements[bound.first] = (total == 0) ? (Point(0, 0, 0)) : (disp / total);
-	}
-	for (auto v_it = sk_vertices.begin(); v_it != sk_vertices.end(); ++v_it) {
-		VertexHandle v_h = *v_it;
-		Point u = point(v_h);
-
-		Point d = displacements[v_h];
-
-		std::vector<SKHalfedge>& halfedges = outHalfedges[v_h];
-		for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-			d += displacements[he_it->to];
-		}
-
-		d /= (halfedges.size() + 1);
-
-		set_point(v_h, u - d);
-	}
-
-}
-bool MyMesh::collapseToLine(std::vector<VertexHandle>& sk_vertices,
-	std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, std::map<VertexHandle, std::vector<SKFace>>& of_map,
-	std::map < VertexHandle, std::vector<VertexHandle>>& boundary_map)
-{
-	std::vector<SKHalfedge>::iterator sk_he_it;
-	std::vector<VertexHandle>::iterator sk_v_it;
-
-	double min = std::numeric_limits<double>::infinity();
-	bool found = false;
-
-	for (auto v_it = sk_vertices.begin(); v_it != sk_vertices.end() && !found; ++v_it) {
-		std::vector<SKHalfedge>& halfedges = ohe_map[*v_it];
-
-		for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-
-			float cost = he_it->cost;
-			if (cost < min)
-			{
-				if (edge_is_collapse_ok(of_map, ohe_map, he_it)) {
-					found = true;
-					min = cost;
-
-					sk_v_it = v_it;
-					sk_he_it = he_it;
-
-					if (min <= this->last_min) {
-						break;
-					}
-				}
-			}
-		}
-	}
-
-	if (!found) {
-		std::cout << "Not Found Break" << std::endl;
-		return false;
-	}
-
-	last_min = min;
-
-	VertexHandle from = sk_he_it->from;
-	VertexHandle to = sk_he_it->to;
-
-	edge_collapse(of_map, ohe_map, sk_he_it);
-	sk_vertices.erase(sk_v_it);
-
-	auto bound_it0 = boundary_map.find(from);
-	auto bound_it1 = boundary_map.find(to);
-
-	bound_it1->second.push_back(from);
-	bound_it1->second.insert(bound_it1->second.end(), bound_it0->second.begin(), bound_it0->second.end());
-
-	boundary_map.erase(bound_it0);
-
-	//recompute quadrics & edge errors
-	this->property(prop_sk_vQ, to) = (this->property(prop_sk_vQ, to) + this->property(prop_sk_vQ, from));
-
-	computeSKVertexError(ohe_map, to);
-	std::vector<SKHalfedge>& halfedges = ohe_map[to];
-	for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-		computeSKVertexError(ohe_map, he_it->to);
-	}
-	for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-		computeSKEdgeCost(he_it);
-		std::vector<SKHalfedge>& to_halfedges = ohe_map[he_it->to];
-		for (auto to_he_it = to_halfedges.begin(); to_he_it != to_halfedges.end(); ++to_he_it)
-		{
-			computeSKEdgeCost(to_he_it);
-			float cost = to_he_it->cost;
-
-			if (cost < last_min)
-			{
-				last_min = cost;
-			}
-		}
-	}
-	return sk_face_count > 0;
+	L2.setFromTriplets(triplet_list_L2.begin(), triplet_list_L2.end());
+	LL2 = L2.transpose() * L2;
 }
 
-void MyMesh::initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, MyMesh::VertexHandle v_h)
+void MyMesh::select(unsigned int face_ID, MyMesh::Point p)
 {
-	Point p = point(v_h);
-	Eigen::Vector3d v(p[0], p[1], p[2]);
+	FaceHandle fh = this->face_handle(face_ID-1);
 
-	Eigen::Matrix4d Q = Eigen::Matrix4d::Zero();
-	Eigen::MatrixXd K(3, 4);
+	FaceVertexIter fv_it = fv_iter(fh);
+	MyMesh::Point p0 = point(fv_it); ++fv_it;
+	MyMesh::Point p1 = point(fv_it); ++fv_it;
+	MyMesh::Point p2 = point(fv_it);
 
-	std::pair<std::map<VertexHandle, std::vector<SKHalfedge>>::iterator, bool> ret;
-	ret = ohe_map.insert(std::pair<VertexHandle, std::vector<SKHalfedge>>(v_h, std::vector<SKHalfedge>()));
+	MyMesh::Point vp0 = p0 - p;
+	MyMesh::Point vp1 = p1 - p;
+	MyMesh::Point vp2 = p2 - p;
 
-	std::vector<SKHalfedge>& halfedges = ret.first->second;
+	double a0 = vp1.cross(vp2).length();
+	double a1 = vp0.cross(vp2).length();
+	double a2 = vp0.cross(vp1).length();
 
-	for (VertexOHalfedgeIter voh_it = voh_iter(v_h); voh_it.is_valid(); ++voh_it) {
+	double i_area = 1.0 / (a0 + a1 + a2);
 
-		VertexHandle v_h1 = to_vertex_handle(voh_it);
+	ControlPoint cp;
+	cp.fh = fh;
+	cp.w[0] = i_area * a0;
+	cp.w[1] = i_area * a1;
+	cp.w[2] = i_area * a2;
+	cp.c = cp.w[0] * p0 + cp.w[1] * p1 + cp.w[2] * p2;
 
-		Point p1 = point(v_h1);
-		Eigen::Vector3d a((double)p1[0] - p[0], (double)p1[1] - p[1], (double)p1[2] - p[2]);
-		a.normalize();
-		Eigen::Vector3d b = a.cross(v);
-
-		K << 0, -a[2], a[1], -b[0], \
-			a[2], 0, -a[0], -b[1], \
-			- a[1], a[0], 0, -b[2];
-
-		Q += (K.transpose() * K);
-
-		halfedges.push_back(SKHalfedge(v_h, v_h1, 0));
-	}
-
-	this->property(prop_sk_vQ, v_h) = Q;
-}
-void MyMesh::computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, MyMesh::VertexHandle v_h)
-{
-	Point p = point(v_h);
-	double adj = 0;
-
-	std::vector<SKHalfedge>& halfedges = ohe_map[v_h];
-	for (auto he_it = halfedges.begin(); he_it != halfedges.end(); ++he_it) {
-		Point p01 = (p - point(he_it->to));
-		adj += sqrt((double)p01[0] * (double)p01[0] + (double)p01[1] * (double)p01[1] + (double)p01[2] * (double)p01[2]);
-	}
-
-	this->property(prop_sk_vl, v_h) = adj;
-}
-void MyMesh::computeSKEdgeCost(std::vector<SKHalfedge>::iterator sk_he_it)
-{
-	VertexHandle v_h0 = sk_he_it->from; // from
-	VertexHandle v_h1 = sk_he_it->to; // to
-
-	Eigen::Matrix4d& Q0 = this->property(prop_sk_vQ, v_h0);
-	Eigen::Matrix4d& Q1 = this->property(prop_sk_vQ, v_h1);
-
-	Point p0 = point(v_h0);
-	Point p1 = point(v_h1);
-
-	Eigen::Vector4d v1(p1[0], p1[1], p1[2], 1);
-
-	double Fa = abs(v1.dot(Q0 * v1)) + abs(v1.dot(Q1 * v1));
-
-	double adj_distance = property(prop_sk_vl, v_h0);
-
-	Point p01 = (p1 - p0);
-	double length = sqrt((double)p01[0] * (double)p01[0] + (double)p01[1] * (double)p01[1] + (double)p01[2] * (double)p01[2]);
-	double Fb = length * adj_distance;
-
-	sk_he_it->cost = SK_WA * Fa + SK_WB * Fb;
-}
-bool MyMesh::edge_is_collapse_ok(std::map<VertexHandle, std::vector<SKFace>>& of_map,
-	std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, std::vector<SKHalfedge>::iterator sk_he_it)
-{
-	std::vector<SKHalfedge>& halfedges0 = ohe_map[sk_he_it->from];
-	std::vector<SKHalfedge>& halfedges1 = ohe_map[sk_he_it->to];
-
-	std::vector<SKFace>& outFaces0 = of_map[sk_he_it->from];
-	std::vector<SKFace>& outFaces1 = of_map[sk_he_it->to];
-	return (outFaces0.size() > 0 && outFaces1.size() > 0);
+	AddControlPoint(cp);
 }
 
-bool MyMesh::edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map,
-	std::map<VertexHandle, std::vector<SKHalfedge>>& ohe_map, std::vector<SKHalfedge>::iterator sk_he_it)
+void MyMesh::InitCompilation()
 {
-	VertexHandle v_h0 = sk_he_it->from;
-	VertexHandle v_h1 = sk_he_it->to;
+	C1_triplets.clear();
+	C2_triplets.clear();
+}
 
-	auto v0_he_iter = ohe_map.find(v_h0);
-	auto v1_he_iter = ohe_map.find(v_h1);
+void MyMesh::AddControlPoint(ControlPoint cp)
+{
+	FaceVertexIter fv_it = fv_iter(cp.fh);
+	int c0 = fv_it->idx(); ++fv_it;
+	int c1 = fv_it->idx(); ++fv_it;
+	int c2 = fv_it->idx();
 
-	std::vector<SKHalfedge>& halfedges0 = v0_he_iter->second;
-	std::vector<SKHalfedge>& halfedges1 = v1_he_iter->second;
+	int row = controlPoints.size();
 
-	for (auto he_it0 = halfedges0.begin(); he_it0 != halfedges0.end(); ++he_it0) {
+	C1_triplets.push_back(Eigen::Triplet<double>(row * 2, c0 * 2, cp.w[0] * W));
+	C1_triplets.push_back(Eigen::Triplet<double>(row * 2, c1 * 2, cp.w[1] * W));
+	C1_triplets.push_back(Eigen::Triplet<double>(row * 2, c2 * 2, cp.w[2] * W));
 
-		std::vector<SKHalfedge>& halfedges0_i = ohe_map[he_it0->to];
+	C1_triplets.push_back(Eigen::Triplet<double>(row * 2 + 1, c0 * 2 + 1, cp.w[0] * W));
+	C1_triplets.push_back(Eigen::Triplet<double>(row * 2 + 1, c1 * 2 + 1, cp.w[1] * W));
+	C1_triplets.push_back(Eigen::Triplet<double>(row * 2 + 1, c2 * 2 + 1, cp.w[2] * W));
 
-		// remove halfedge
-		for (auto t_he_it = halfedges0_i.begin(); t_he_it != halfedges0_i.end(); ++t_he_it) {
-			if (t_he_it->to == v_h0) {
-				halfedges0_i.erase(t_he_it);
-				break;
-			}
-		}
+	C2_triplets.push_back(Eigen::Triplet<double>(row, c0, cp.w[0] * W));
+	C2_triplets.push_back(Eigen::Triplet<double>(row, c1, cp.w[1] * W));
+	C2_triplets.push_back(Eigen::Triplet<double>(row, c2, cp.w[2] * W));
 
-		// append edge
-		if (he_it0->to != v_h1) {
-			// check if this edge exist
-			bool found = false;
-			for (auto he_it1 = halfedges1.begin(); he_it1 != halfedges1.end(); ++he_it1) {
-				if (he_it1->to == he_it0->to) {
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				halfedges1.push_back(SKHalfedge(v_h1, he_it0->to));
-				halfedges0_i.push_back(SKHalfedge(he_it0->to, v_h1));
-			}
+	controlPoints.push_back(cp);
 
-		}
+	Compilation();
+}
+
+void MyMesh::RemoveControlPoint(unsigned int idx)
+{
+	ControlPoint& cp = controlPoints[idx];
+
+	C1_triplets.erase(C1_triplets.begin() + idx * 6, C1_triplets.begin() + idx * 6 + 6);
+	C2_triplets.erase(C2_triplets.begin() + idx * 3, C2_triplets.begin() + idx * 3 + 3);
+
+	controlPoints.erase(controlPoints.begin() + idx);
+
+	Compilation();
+}
+
+void MyMesh::Compilation()
+{
+	std::cout << 0 << std::endl;
+	const int N_V(n_vertices());
+
+	C1 = Eigen::SparseMatrix<double>(controlPoints.size(), N_V * 2); // solve x,y together
+	C2 = Eigen::SparseMatrix<double>(controlPoints.size(), N_V); // solve x, y respectively
+
+	CC1 = Eigen::SparseMatrix<double>(N_V * 2, N_V * 2); // solve x,y together
+	CC2 = Eigen::SparseMatrix<double>(N_V, N_V); // solve x, y respectively
+
+	C1.setFromTriplets(C1_triplets.begin(), C1_triplets.end());
+	C2.setFromTriplets(C2_triplets.begin(), C2_triplets.end());
+
+	CC1 = C1.transpose() * C1;
+	CC2 = C2.transpose() * C2;
+
+	std::cout << 5 << std::endl;
+
+}
+
+unsigned int MyMesh::FindControlPoint(MyMesh::Point, double)
+{
+	return 0;
+}
+
+
+void MyMesh::Compute()
+{
+	Step1();
+	Step2();
+}
+
+void MyMesh::Step1()
+{
+	const int N_V(n_vertices());
+	const int N_E(n_edges());
+	const int N_C(controlPoints.size());
+
+	Eigen::MatrixXd b1 = Eigen::MatrixXd::Zero(1, N_E * 2 + N_C * 2);
+
+	for (int i = 0; i < controlPoints.size(); i++) {
+		b1(0, N_E * 2 + i * 2) = controlPoints[i].c[0] * W;
+		b1(0, N_E * 2 + i * 2 + 1) =  controlPoints[i].c[1] * W;
 	}
-	ohe_map.erase(v0_he_iter);
 
-	// remove & add faces
-	auto v0_of_iter = of_map.find(v_h0);
-	auto v1_of_iter = of_map.find(v_h1);
+	Eigen::SparseMatrix<double, Eigen::RowMajor> A1(N_E * 2 + N_C * 2, N_V * 2);
+	A1.topRows(N_E * 2) = L1;
+	A1.bottomRows(N_C * 2) = C1;
 
-	std::vector<SKFace>& outfaces0 = v0_of_iter->second;
-	std::vector<SKFace>& outfaces1 = v1_of_iter->second;
+	Eigen::SparseMatrix<double> AA1 = LL1 + CC1;
 
-	// remove face
-	for (auto of_it0 = outfaces0.begin(); of_it0 != outfaces0.end(); ++of_it0) {
-		for (int idx = 0; idx < 2; idx++) {
-			std::vector<SKFace>& outfaces0_i = of_map[of_it0->to[idx]];
-			for (auto t_of_it = outfaces0_i.begin(); t_of_it != outfaces0_i.end();) {
-				if (t_of_it->to[0] == v_h0 || t_of_it->to[1] == v_h0) {
-					t_of_it = outfaces0_i.erase(t_of_it);
-					sk_face_count -= 1;
-				}
-				else {
-					++t_of_it;
-				}
-			}
+	Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver(AA1);
+
+	V1 = solver.solve(A1.transpose() * b1);
+}
+
+void MyMesh::Step2()
+{
+	const int N_V(n_vertices());
+	const int N_E(n_edges());
+	const int N_C(controlPoints.size());
+
+	Eigen::MatrixXd b2x(1, N_E + N_C);
+	Eigen::MatrixXd b2y(1, N_E + N_C);
+
+	for (auto e_it = this->edges_begin(); e_it != this->edges_end(); ++e_it) {
+
+		int cols = (is_boundary(e_it) ? 6 : 8);
+		int row = e_it->idx();
+
+		HalfedgeHandle heh = halfedge_handle(e_it, 0);
+
+		Eigen::MatrixXd& G = this->property(prop_G, e_it);
+
+		VertexHandle vh_from = from_vertex_handle(heh);
+		VertexHandle vh_to = to_vertex_handle(heh);
+
+		double pFromX = V1(vh_from.idx() * 2);
+		double pFromY = V1(vh_from.idx() * 2 + 1);
+
+		double pToX = V1(vh_to.idx() * 2);
+		double pToY = V1(vh_to.idx() * 2 + 1);
+
+		double c = 0;
+		double s = 0;
+
+		Eigen::VectorXd v(cols);
+
+		c += G(0, 0) * pFromX + G(0, 1) * pFromY;
+		s += G(1, 0) * pFromX + G(1, 1) * pFromY;
+
+		c += G(0, 2) * pToX + G(0, 3) * pToY;
+		s += G(1, 2) * pToX + G(1, 3) * pToY;
+
+		int v_row = 2;
+		// boundary check
+		VertexHandle vh0 = opposite_vh(heh);
+		if (vh0 != MyMesh::InvalidVertexHandle) {
+			double p0X = V1(vh0.idx() * 2);
+			double p0Y = V1(vh0.idx() * 2 + 1);
+			c += G(0, v_row * 2) * p0X + G(0, v_row * 2 + 1) * p0Y;
+			s += G(1, v_row * 2) * p0X + G(1, v_row * 2 + 1) * p0Y;
+			v_row += 1;
+		}
+		VertexHandle vh1 = opposite_he_opposite_vh(heh);
+		if (vh1 != MyMesh::InvalidVertexHandle) {
+			double p0X = V1(vh1.idx() * 2);
+			double p0Y = V1(vh1.idx() * 2 + 1);
+			c += G(0, v_row * 2) * p0X + G(0, v_row * 2 + 1) * p0Y;
+			s += G(1, v_row * 2) * p0X + G(1, v_row * 2 + 1) * p0Y;
 		}
 
-		// add face
-		SKFace tmpFace;
-		if ((of_it0->to[0] != v_h1) && (of_it0->to[1] != v_h1)) {
-			std::vector<SKFace>& outfaces0_0 = of_map[of_it0->to[0]];
-			std::vector<SKFace>& outfaces0_1 = of_map[of_it0->to[1]];
+		double norm = 1.0 / (c * c + s * s);
+		MyMesh::Point e = point(vh_to) - point(vh_from);
 
-			tmpFace.from = v_h1;
-			tmpFace.to[0] = of_it0->to[0];
-			tmpFace.to[1] = of_it0->to[1];
-			outfaces1.push_back(tmpFace);
-			sk_face_count += 1;
-
-			tmpFace.from = of_it0->to[0];
-			tmpFace.to[0] = of_it0->to[1];
-			tmpFace.to[1] = v_h1;
-			outfaces0_0.push_back(tmpFace);
-			sk_face_count += 1;
-
-			tmpFace.from = of_it0->to[1];
-			tmpFace.to[0] = v_h1;
-			tmpFace.to[1] = of_it0->to[0];
-			outfaces0_1.push_back(tmpFace);
-			sk_face_count += 1;
-		}
+		b2x(0, row) = (e[0] * c + e[1] * s) * norm;
+		b2y(0, row) = (e[1] * c - e[0] * s) * norm;
 	}
 
-	sk_face_count -= outfaces0.size();
-	of_map.erase(v0_of_iter);
+	for (int i = 0; i < controlPoints.size(); i++) {
+		b2x(0, N_E + i) = controlPoints[i].c[0] * W;
+		b2y(0, N_E + i) = controlPoints[i].c[1] * W;
+	}
 
-	return false;
+	Eigen::SparseMatrix<double, Eigen::RowMajor> A2(N_E + N_C, N_V);
+	A2.topRows(N_E) = L2;
+	A2.bottomRows(N_C) = C2;
+
+	Eigen::SparseMatrix<double> AA2 = LL2 + CC2;
+
+	Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> solver(AA2);
+
+	V2x = solver.solve(A2.transpose() * b2x);
+	V2y = solver.solve(A2.transpose() * b2y);
 }
 
 #pragma endregion
@@ -1033,7 +495,7 @@ GLMesh::~GLMesh()
 
 bool GLMesh::Init(std::string fileName)
 {
-	if (LoadModel(fileName))
+	if (Load2DModel(fileName))
 	{
 		glGenVertexArrays(1, &this->vao.vao);
 		glBindVertexArray(this->vao.vao);
@@ -1054,65 +516,45 @@ bool GLMesh::Init(std::string fileName)
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 
-		//std::cout << "vertex number: " << mesh.n_vertices() << std::endl;
-		//std::cout << "edge number: " << mesh.n_edges() << std::endl;
-		//std::cout << "half edge number: " << mesh.n_halfedges() << std::endl;
-		//std::cout << "face number: " << mesh.n_faces() << std::endl;
+		LoadToShader();
 
-		for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
-		{
-			initial_vertices.push_back(mesh.point(*v_it));
-			initial_normals.push_back(mesh.normal(*v_it));
-		}
-		for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
-			for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
-				initial_indices.push_back(fv_it->idx());
-
-		LoadToShader(initial_vertices, initial_normals, initial_indices);
-
-		{
-			glGenVertexArrays(1, &this->skeleton.vao);
-			glBindVertexArray(this->skeleton.vao);
-
-			glGenBuffers(3, this->skeleton.vbo);
-
-			glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[0]);
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-			glEnableVertexAttribArray(0);
-
-			glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[1]);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-			glEnableVertexAttribArray(1);
-
-			glGenBuffers(1, &this->skeleton.ebo);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->skeleton.ebo);
-
-			glBindBuffer(GL_ARRAY_BUFFER, 0);
-			glBindVertexArray(0);
-		}
-	
+		std::cout << "SUCCESS" << std::endl;
 		return true;
 	}
+
+	std::cout << "FAILED" << std::endl;
 	return false;
 }
 
 void GLMesh::renderMesh()
 {
-	if (this->vao.element_amount)
+	if (this->vao.element_amount > 0)
 	{
 		glBindVertexArray(this->vao.vao);
 		glDrawElements(GL_TRIANGLES, this->vao.element_amount, GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 	}
 }
-void GLMesh::renderSkeleton()
+void GLMesh::renderControlPoints()
 {
-	if (this->skeleton.element_amount)
-	{
-		glBindVertexArray(this->skeleton.vao);
-		glDrawElements(GL_LINES, this->skeleton.element_amount, GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
+	//glEnable(GL_PROGRAM_POINT_SIZE);
+	glColor3d(0, 0, 1);
+	glPointSize(10);
+	glEnable(GL_POINT_SMOOTH);
+	glBegin(GL_POINTS);
+	size_t n_controlPoints = this->mesh.controlPoints.size();
+	for (size_t i = 0; i < n_controlPoints; i++) {
+		MyMesh::ControlPoint& cp = this->mesh.controlPoints[i];
+		glVertex3f(cp.c[0], 0, cp.c[2]);
 	}
+	glEnd();
+	glDisable(GL_POINT_SMOOTH);
+	//glDisable(GL_PROGRAM_POINT_SIZE);
+}
+
+void GLMesh::select(unsigned int tri_ID, MyMesh::Point p)
+{
+	this->mesh.select(tri_ID, p);
 }
 
 bool GLMesh::LoadModel(std::string fileName)
@@ -1125,14 +567,155 @@ bool GLMesh::LoadModel(std::string fileName)
 			mesh.request_face_normals();
 			mesh.update_normals();
 			//mesh.release_face_normals();
-
-			mesh.computeErrorQuadrics();
-			mesh.computeError();
 		}
 		return true;
 	}
 
 	return false;
+}
+
+bool GLMesh::Load2DImage(std::string fileName)
+{
+	cv::Mat img = cv::imread(fileName);
+	return false;
+}
+
+
+typedef CGAL::Exact_predicates_inexact_constructions_kernel           CGAL_K;
+typedef CGAL::Delaunay_mesh_vertex_base_2<CGAL_K>                     CGAL_Vb;
+typedef CGAL::Delaunay_mesh_face_base_2<CGAL_K>                       CGAL_Fb;
+typedef CGAL::Triangulation_data_structure_2<CGAL_Vb, CGAL_Fb>        CGAL_Tds;
+typedef CGAL::Constrained_Delaunay_triangulation_2<CGAL_K, CGAL_Tds>  CGAL_CDT;
+typedef CGAL::Delaunay_mesh_size_criteria_2<CGAL_CDT>                 CGAL_Criteria;
+typedef CGAL::Delaunay_mesher_2<CGAL_CDT, CGAL_Criteria>              CGAL_Mesher;
+
+typedef CGAL_CDT::Vertex_handle CGAL_Vertex_handle;
+typedef CGAL_CDT::Point CGAL_Point;
+
+bool GLMesh::Load2DModel(std::string fileName)
+{
+	std::ifstream ifs(fileName);
+	if (!ifs.is_open()) {
+		std::cout << "Cannot open file \"" << fileName << "\" !!" << std::endl;
+		return false;
+	}
+
+	std::size_t nPts, nEdges;
+	ifs >> nPts >> nEdges;
+
+	std::vector<MyMesh::Point> m_points;
+
+	for (std::size_t i = 0; i < nPts; ++i)
+	{
+		float x1, y1;
+		ifs >> x1 >> y1;
+		m_points.push_back(MyMesh::Point(x1, y1, 0));
+	}
+	// find bounding box
+	float max_x = m_points[0][0];
+	float max_y = m_points[0][1];
+	float min_x = m_points[0][0];
+	float min_y = m_points[0][1];
+	for (int i = 0; i < m_points.size(); i++)
+	{
+		max_x = std::max(m_points[i][0], max_x);
+		max_y = std::max(m_points[i][1], max_y);
+		min_x = std::min(m_points[i][0], min_x);
+		min_y = std::min(m_points[i][1], min_y);
+	}
+
+	float norm_size = 1.0f;
+	float norm_scale = norm_size / std::max(std::max(abs(max_x - min_x), abs(max_y - min_y)), 1.0f);
+	float x_offset = (max_x + min_x) * norm_scale * 0.5f;
+	float y_offset = (max_y + min_y) * norm_scale * 0.5f;
+
+	// create constrainted delaunay triangulation handler
+	CGAL_CDT cdt;
+
+	// insertion
+	std::vector<CGAL_Vertex_handle> vertices;
+	for (int i = 0; i < m_points.size(); i++)
+	{
+		vertices.push_back(
+			cdt.insert(CGAL_Point(m_points[i][0] * norm_scale - x_offset, m_points[i][1] * norm_scale - y_offset))
+		);
+	}
+
+	for (std::size_t i = 0; i < nEdges; ++i)
+	{
+		unsigned int v1, v2;
+		ifs >> v1 >> v2;
+		cdt.insert_constraint(vertices[v1], vertices[v2]);
+	}
+
+	std::list<CGAL_Point> list_of_seeds;
+	if (!ifs.eof()) {
+		std::size_t nSeeds;
+		ifs >> nSeeds;
+		for (std::size_t i = 0; i < nSeeds; ++i)
+		{
+			float x1, y1;
+			ifs >> x1 >> y1;
+			list_of_seeds.push_back(CGAL_Point(x1 * norm_scale - x_offset, y1 * norm_scale - y_offset));
+		}
+	}
+
+	ifs.close();
+
+	std::cout << "Number of vertices: " << cdt.number_of_vertices() << std::endl;
+
+	
+
+	std::cout << "Meshing..." << std::endl;
+	CGAL_Mesher mesher(cdt);
+	mesher.set_criteria(CGAL_Criteria(0.125, 0.05));
+	mesher.refine_mesh();
+
+	std::cout << "Number of vertices: " << cdt.number_of_vertices() << std::endl;
+	std::cout << "Run Lloyd optimization...";
+
+	CGAL::lloyd_optimize_mesh_2(cdt, CGAL::parameters::max_iteration_number = 10);
+
+	if (!list_of_seeds.empty()) {
+		std::cout << "Meshing the domain..." << std::endl;
+		CGAL::refine_Delaunay_mesh_2(cdt, list_of_seeds.begin(), list_of_seeds.end(),
+			CGAL_Criteria());
+	}
+
+	std::cout << " done." << std::endl;
+
+	if (cdt.number_of_vertices() == 0)
+		return false;
+	
+	float scale = 200.0f;
+	std::map<CGAL_Vertex_handle,MyMesh::VertexHandle> v_handles;
+	for (auto v_it = cdt.finite_vertices_begin(); v_it != cdt.finite_vertices_end(); ++v_it)
+	{
+		CGAL_Vertex_handle h = v_it->handle();
+		auto& p = v_it->point();
+		OpenMesh::Vec3f v(p.x() * scale, 0, p.y() * scale);
+		v_handles[h] = mesh.add_vertex(v);
+	}
+
+	std::vector<MyMesh::VertexHandle> face_vhandles;
+	for (auto f_it = cdt.finite_faces_begin(); f_it != cdt.finite_faces_end(); ++f_it)
+	{
+		if (f_it->is_in_domain()) {
+
+			CGAL_Vertex_handle h0 = f_it->vertex(0)->handle();
+			CGAL_Vertex_handle h1 = f_it->vertex(1)->handle();
+			CGAL_Vertex_handle h2 = f_it->vertex(2)->handle();
+
+			face_vhandles.clear();
+			face_vhandles.push_back(v_handles[h0]);
+			face_vhandles.push_back(v_handles[h1]);
+			face_vhandles.push_back(v_handles[h2]);
+
+			mesh.add_face(face_vhandles);
+		}
+	}
+
+	return true;
 }
 
 void GLMesh::LoadToShader()
@@ -1197,39 +780,10 @@ void GLMesh::LoadTexCoordToShader()
 		glBindVertexArray(0);
 	}
 }
-void GLMesh::simplification()
-{
-	for (int i(0); i < simplification_vertices.size(); i++)
-	{
-		simplification_vertices[i].clear();
-		simplification_normals[i].clear();
-		simplification_indices[i].clear();
-	}
-	simplification_vertices.clear();
-	simplification_normals.clear();
-	simplification_indices.clear();
 
-	mesh.simplification(
-		simplification_vertices,
-		simplification_normals,
-		simplification_indices);
-
-	simplification(0.0f);
-}
-
-void GLMesh::simplification(float ratio)
-{
-	if (simplification_vertices.empty())
-		return;
-
-	int idx = (int)((1.0f - ratio) * (simplification_vertices.size() - 1));
-	//reload
-	mesh.reloadMesh(simplification_vertices[idx], simplification_indices[idx]);
-	LoadToShader();
-}
 void GLMesh::resetMesh()
 {
-	mesh.reloadMesh(initial_vertices, initial_indices);
+	//mesh.reloadMesh(initial_vertices, initial_indices);
 	LoadToShader();
 }
 bool GLMesh::exportMesh()
@@ -1251,107 +805,4 @@ bool GLMesh::exportMesh()
 	return true;
 }
 
-void GLMesh::generateLeastSquareMesh(int control_num)
-{
-	std::vector<MyMesh::Point> vertices;
-	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
-	{
-		vertices.push_back(mesh.point(*v_it));
-	}
-	std::vector<unsigned int> indices;
-	for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
-		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
-			indices.push_back(fv_it->idx());
-
-	mesh.generateLeastSquareMesh(vertices, control_num);
-	mesh.reloadMesh(vertices, indices);
-
-	LoadToShader();
-}
-
-void GLMesh::degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L)
-{
-	for (auto& d : degeneration_vertices)
-		d.clear();
-	degeneration_vertices.clear();
-	degeneration_indices.clear();
-
-	mesh.degenerateLeastSquareMesh(degeneration_vertices, W0_L, W0_H, S_L);
-
-	for (MyMesh::FaceIter f_it = mesh.faces_begin(); f_it != mesh.faces_end(); ++f_it)
-		for (MyMesh::FaceVertexIter fv_it = mesh.fv_iter(*f_it); fv_it.is_valid(); ++fv_it)
-			degeneration_indices.push_back(fv_it->idx());
-
-	degenerateLeastSquareMesh(0.0f);
-}
-
-void GLMesh::degenerateLeastSquareMesh(float ratio)
-{
-	if (degeneration_vertices.empty())
-		return;
-
-	int idx = (int)((1.0f - ratio) * (degeneration_vertices.size() - 1));
-
-	//reload
-	mesh.reloadMesh(degeneration_vertices[idx], degeneration_indices);
-	LoadToShader();
-}
-
-void GLMesh::degenerationMeshToLine(float ratio)
-{
-	if (skeleton_indices.empty())
-	{
-		return;
-	}
-
-	int idx = (int)((1.0f - ratio) * (skeleton_indices.size() - 1));
-
-	this->skeleton.element_amount = skeleton_indices[idx].size();
-
-	glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Point) * skeleton_vertices.size(), &skeleton_vertices[0], GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, this->skeleton.vbo[1]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(MyMesh::Normal) * skeleton_normal.size(), &skeleton_normal[0], GL_STATIC_DRAW);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(1);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->skeleton.ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * skeleton_indices[idx].size(), &skeleton_indices[idx][0], GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-}
-
-void GLMesh::degenerationMeshToLine(double w_a, double w_b)
-{
-	if (degeneration_vertices.empty())
-		return;
-
-	for (auto& s : this->skeleton_indices)
-		s.clear();
-	this->skeleton_indices.clear();
-	this->skeleton_vertices.clear();
-	this->skeleton_normal.clear();
-	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
-	{
-		skeleton_vertices.push_back(mesh.point(*v_it));
-		skeleton_normal.push_back(mesh.normal(*v_it));
-	}
-
-	mesh.degenerationMeshToLine(skeleton_indices, initial_vertices, w_a, w_b);
-
-	this->degenerationMeshToLine(0);
-}
-
 #pragma endregion
-
-MyMesh::SKHalfedge::SKHalfedge(VertexHandle f, VertexHandle t, float c)
-{
-	from = f;
-	to = t;
-	cost = c;
-}

@@ -51,6 +51,24 @@ class MyWindow;
 
 class GLMesh;
 
+class PickingTexture
+{
+public:
+	bool Init(unsigned int WindowWidth, unsigned int WindowHeight);
+	bool Resize(unsigned int WindowWidth, unsigned int WindowHeight);
+
+	void EnableWriting();
+
+	void DisableWriting();
+
+	float ReadPixel(unsigned int x, unsigned int y);
+
+private:
+	GLuint m_fbo;
+	GLuint m_pickingTexture;
+};
+
+
 class MyView : public Fl_Gl_Window
 {
 public:
@@ -60,7 +78,8 @@ public:
 	// overrides of important window things
 	virtual int handle(int);
 	virtual void draw();
-
+	virtual void resize(int, int, int, int);
+	void doPick(int,int);
 	// setup the projection - assuming that the projection stack has been
 	// cleared for you
 	void setProjection();
@@ -76,12 +95,12 @@ public:
 
 	MyWindow* mw;				// The parent of this display window
 
-	Shader* shader = nullptr;
-	Texture2D* texture = nullptr;
-	VAO* plane = nullptr;
+	Shader* commom_shader = nullptr;
 	UBO* commom_matrices = nullptr;
 
 	GLMesh* gl_mesh = nullptr;
-	CubeMap* skybox = nullptr;
 	UBO* common_view = nullptr;
+
+	Shader* picking_shader = nullptr;
+	PickingTexture picking_tex;
 };

@@ -11,7 +11,9 @@ set(SRC_SHADER
     ${SRC_DIR}shaders/simple.vert
     ${SRC_DIR}shaders/simple.frag
     ${SRC_DIR}shaders/cubeMap.vert
-    ${SRC_DIR}shaders/cubeMap.frag)
+    ${SRC_DIR}shaders/cubeMap.frag
+    ${SRC_DIR}shaders/picking.vert
+    ${SRC_DIR}shaders/picking.frag)
 
 set(SRC_RENDER_UTILITIES
     ${SRC_DIR}RenderUtilities/BufferObject.h
@@ -46,7 +48,6 @@ add_executable(MeshSimplification
 )
 source_group("shaders" FILES ${SRC_SHADER})
 source_group("RenderUtilities" FILES ${SRC_RENDER_UTILITIES})
-
 
 add_library(Utilities 
     ${SRC_DIR}Utilities/ArcBallCam.h

@@ -76,13 +76,13 @@ MyWindow(const int x, const int y)
 		camGroup->begin();
 		world_cam = new Fl_Button(605, pty, 60, 20, "World");
 		world_cam->type(FL_RADIO_BUTTON);		// radio button
-		world_cam->value(1);			// turned on
+		world_cam->value(0);			// turned off
 		world_cam->selection_color((Fl_Color)3); // yellow when pressed
 		world_cam->callback((Fl_Callback*)damageCB, this);
 
 		top_cam = new Fl_Button(735, pty, 60, 20, "Top");
 		top_cam->type(FL_RADIO_BUTTON);
-		top_cam->value(0);
+		top_cam->value(1);
 		top_cam->selection_color((Fl_Color)3);
 		top_cam->callback((Fl_Callback*)damageCB, this);
 		camGroup->end();
@@ -108,50 +108,27 @@ MyWindow(const int x, const int y)
 		reset->callback((Fl_Callback*)resetCB, this);
 		pty += 25;
 
-		Fl_Button* Simplification = new Fl_Button(605, pty, 60, 20, "Simplification");
+		/*Fl_Button* Simplification = new Fl_Button(605, pty, 60, 20, "Simplification");
 		Simplification->callback((Fl_Callback*)simplificationCB, this);
-		pty += 25;
+		pty += 25;*/
 
-		simplification_slider = new Fl_Value_Slider(655, pty, 140, 20, "S");
+		/*simplification_slider = new Fl_Value_Slider(655, pty, 140, 20, "S");
 		simplification_slider->range(0.0, 1.0);
 		simplification_slider->value(1.0);
 		simplification_slider->align(FL_ALIGN_LEFT);
 		simplification_slider->type(FL_HORIZONTAL);
 		simplification_slider->callback((Fl_Callback*)simplificationSlideCB, this);
-		pty += 30;
+		pty += 30;*/
 
-		Fl_Button* Degeneration = new Fl_Button(605, pty, 60, 20, "Degeneration");
-		Degeneration->callback((Fl_Callback*)degenerationCB, this);
-		pty += 25;
-		WL0 = new Fl_Value_Input(675, pty, 60, 20, "WL0"); WL0->value(0.001); pty += 25;
+		/*WL0 = new Fl_Value_Input(675, pty, 60, 20, "WL0"); WL0->value(0.001); pty += 25;
 		WH0 = new Fl_Value_Input(675, pty, 60, 20, "WH0"); WH0->value(1.0); pty += 25;
-		SL = new Fl_Value_Input(675, pty, 60, 20, "SL"); SL->value(4.0); pty += 25;
+		SL = new Fl_Value_Input(675, pty, 60, 20, "SL"); SL->value(4.0); pty += 25;*/
 		
 
-		degeneration_slider = new Fl_Value_Slider(655, pty, 140, 20, "D");
-		degeneration_slider->range(0.0, 1.0);
-		degeneration_slider->value(1.0);
-		degeneration_slider->align(FL_ALIGN_LEFT);
-		degeneration_slider->type(FL_HORIZONTAL);
-		degeneration_slider->callback((Fl_Callback*)degenerationSlideCB, this);
-		pty += 30;
-
-		Fl_Button* Skeleton = new Fl_Button(605, pty, 60, 20, "Skeleton");
+		/*Fl_Button* Skeleton = new Fl_Button(605, pty, 60, 20, "Skeleton");
 		Skeleton->callback((Fl_Callback*)SkeletonCB, this);
-		pty += 25;
+		pty += 25;*/
 
-		degeneration_simplify_slider = new Fl_Value_Slider(655, pty, 140, 20, "DS");
-		degeneration_simplify_slider->range(0.0, 1.0);
-		degeneration_simplify_slider->value(1.0);
-		degeneration_simplify_slider->align(FL_ALIGN_LEFT);
-		degeneration_simplify_slider->type(FL_HORIZONTAL);
-		degeneration_simplify_slider->callback((Fl_Callback*)SkeletonSlideCB, this);
-
-		pty += 30;
-
-		SK_WA = new Fl_Value_Input(675, pty, 60, 20, "WA"); SK_WA->value(1000.0); pty += 25;
-		SK_WB = new Fl_Value_Input(675, pty, 60, 20, "WB"); SK_WB->value(800.0); pty += 25;
-		// TODO: add widgets for all of your fancier features here
 #ifdef EXAMPLE_SOLUTION
 		makeExampleWidgets(this, pty);
 #endif
@@ -190,6 +167,5 @@ void MyWindow::
 damageMe()
 //========================================================================
 {
-
 	myView->damage(1);
 }

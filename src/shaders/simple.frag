@@ -16,6 +16,6 @@ void main()
 	vec3 normal = normalize(f_in.normal);
 
     // f_color = vec4(texture2D(u_texture, f_in.texture_coordinate).rrr, 1.0);
-    f_color = vec4(normal, 1.0f);
-    // f_color = vec4(0.0, 1.0, 0.0, 1.0);
+    //f_color = vec4(normal, 1.0f);
+    f_color = vec4(1.0, 1.0, 1.0, 1.0);
 }

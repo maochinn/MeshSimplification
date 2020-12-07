@@ -11,7 +11,7 @@ struct VAO
 	GLuint ebo;
 	union
 	{
-		unsigned int element_amount;//for draw element
+		unsigned int element_amount = 0;//for draw element
 		unsigned int count;			//for draw array
 	};
 };

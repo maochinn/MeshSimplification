@@ -15,14 +15,6 @@ typedef OpenMesh::TriMesh_ArrayKernelT<>  TriMesh;
 class MyMesh : public TriMesh
 {
 public:
-	//std::vector<std::vector<MyMesh::Point>> record_vertices;
-	//std::vector<std::vector<MyMesh::Normal>> record_normals;
-	//std::vector<std::vector<unsigned int>> record_indices;
-
-	//std::vector<std::vector<MyMesh::Point>> degeneration_vertices;
-
-	//std::vector<std::vector<unsigned int>> degeneration_indices;
-
 	MyMesh();
 	~MyMesh();
 
@@ -31,69 +23,45 @@ public:
 	int FindVertex(MyMesh::Point pointToFind);
 	void ClearMesh();
 
-	// Simplification
-	void computeErrorQuadrics(MyMesh::VertexHandle);
-	void computeErrorQuadrics();
+	void Registration();
+	void preComputeG();
+	void preComputeL1();
+	void preComputeL2();
 
-	void computeError(MyMesh::EdgeHandle);
-	void computeError();
-
-	bool collapse();
-	void simplification(
-		std::vector<std::vector<MyMesh::Point>>&,
-		std::vector<std::vector<MyMesh::Normal>>&,
-		std::vector<std::vector<unsigned int>>&);
-	//record simplification's info
-	void recordSimplification(
-		std::vector<std::vector<MyMesh::Point>>&,
-		std::vector<std::vector<MyMesh::Normal>>&,
-		std::vector<std::vector<unsigned int>>&);
-
-	// Least Square with random control points
-	void generateLeastSquareMesh(std::vector<MyMesh::Point>&, int);
-
-	// Skeleton extraction
-	double computeLaplacianWeight(MyMesh::HalfedgeHandle&);
-	void degenerateLeastSquareMesh(std::vector<std::vector<MyMesh::Point>>&, double, double, double S_L = 5.0, int iterations = 20);
-
-	// Skeleton extraction sec 5
-	struct SKHalfedge {
-		VertexHandle from;
-		VertexHandle to;
-		float cost;
-		SKHalfedge(VertexHandle, VertexHandle, float c = 0);
+	struct ControlPoint {
+		MyMesh::FaceHandle fh;
+		double w[3];
+		MyMesh::Point c;
 	};
-	struct SKFace {
-		VertexHandle from;
-		VertexHandle to[2];
-	};
-	void degenerationMeshToLine(std::vector<std::vector<unsigned int>>& , std::vector<MyMesh::Point>&, double, double);
-	bool collapseToLine(std::vector<VertexHandle>&,
-		std::map<VertexHandle, std::vector<SKHalfedge>>&, std::map<VertexHandle, std::vector<SKFace>>&,
-		std::map < VertexHandle, std::vector<VertexHandle>>&);
-	void initSKVertexErrorQuadric(std::map<VertexHandle, std::vector<SKHalfedge>>&, MyMesh::VertexHandle);
-	void computeSKVertexError(std::map<VertexHandle, std::vector<SKHalfedge>>&, MyMesh::VertexHandle);
-	void computeSKEdgeCost(std::vector<SKHalfedge>::iterator);
-	bool edge_is_collapse_ok(std::map<VertexHandle, std::vector<SKFace>>& of_map, std::map<VertexHandle, std::vector<SKHalfedge>>&, std::vector<SKHalfedge>::iterator);
-	bool edge_collapse(std::map<VertexHandle, std::vector<SKFace>>& of_map, std::map<VertexHandle, std::vector<SKHalfedge>>&, std::vector<SKHalfedge>::iterator);
 
+	void select(unsigned int, MyMesh::Point);
+
+	void InitCompilation();
+	void AddControlPoint(ControlPoint);
+	void RemoveControlPoint(unsigned int);
+	void Compilation();
+
+	unsigned int FindControlPoint(MyMesh::Point, double);
+
+	void Compute();
+	void Step1();
+	void Step2();
+
+	double W = 1000.0;
+
+	std::vector<ControlPoint> controlPoints;
 
 private:
-	double SK_WA;
-	double SK_WB;
+	Eigen::SparseMatrix<double> L1, L2, LL1, LL2;
+	Eigen::SparseMatrix<double> C1, C2, CC1, CC2;
+	std::vector<Eigen::Triplet<double>> C1_triplets;
+	std::vector<Eigen::Triplet<double>> C2_triplets;
 
-	int sk_face_count;
-	float last_min;
-	bool use_last;
-	MyMesh::EdgeHandle last_handle;
+	Eigen::VectorXd V1, V2x, V2y;
 
-	OpenMesh::VPropHandleT<Eigen::Matrix4d> prop_Q;
-	OpenMesh::EPropHandleT<MyMesh::Point> prop_v;
-	OpenMesh::EPropHandleT<float> prop_e;
-
-	OpenMesh::VPropHandleT<float> prop_sk_ve;
-	OpenMesh::VPropHandleT<float> prop_sk_vl;
-	OpenMesh::VPropHandleT<Eigen::Matrix4d> prop_sk_vQ;
+	OpenMesh::EPropHandleT<Eigen::MatrixXd> prop_G;
+	//OpenMesh::EPropHandleT<float> prop_e;
+	//OpenMesh::VPropHandleT<float> prop_sk_ve;
 };
 
 class GLMesh
@@ -108,38 +76,17 @@ public:
 	bool exportMesh();
 
 	void renderMesh();
-	void renderSkeleton();
 
-	void simplification();
-	void simplification(float);
+	void renderControlPoints();
 
-	void generateLeastSquareMesh(int);
-
-	void degenerateLeastSquareMesh(double W0_L, double W0_H, double S_L);
-	void degenerateLeastSquareMesh(float);
-	void degenerationMeshToLine(double,double);
-	void degenerationMeshToLine(float);
-
+	void select(unsigned int, MyMesh::Point);
 private:
-	std::vector<MyMesh::Point> initial_vertices;
-	std::vector<MyMesh::Normal> initial_normals;
-	std::vector<unsigned int> initial_indices;
-
-	std::vector<std::vector<MyMesh::Point>> simplification_vertices;
-	std::vector<std::vector<MyMesh::Normal>> simplification_normals;
-	std::vector<std::vector<unsigned int>> simplification_indices;
-
-	std::vector<std::vector<MyMesh::Point>> degeneration_vertices;
-	std::vector<unsigned int> degeneration_indices;
-
-	std::vector<MyMesh::Point> skeleton_vertices;
-	std::vector<MyMesh::Normal> skeleton_normal;
-	std::vector<std::vector<unsigned int>> skeleton_indices;
-
 	MyMesh mesh;
-	VAO vao, skeleton;
+	VAO vao;
 
 	bool LoadModel(std::string fileName);
+	bool Load2DImage(std::string fileName);
+	bool Load2DModel(std::string fileName);
 	void LoadToShader();
 	void LoadToShader(
 		std::vector<MyMesh::Point>& vertices,

@@ -53,14 +53,12 @@ class MyView;
 class MyWindow : public Fl_Double_Window {
 public:
 	MyWindow(const int x = 50, const int y = 50);
-
 public:
 	// call this method when things change
 	void damageMe();
 
 	// simple helper function to set up a button
 	void togglify(Fl_Button*, int state = 0);
-
 public:
 	// keep track of the stuff in the world
 	//CTrack				m_Track;
@@ -79,16 +77,7 @@ public:
 	Fl_Button* top_cam;
 
 	Fl_Browser* simplification_browser;
-	Fl_Value_Slider* simplification_slider;
-	Fl_Value_Slider* degeneration_slider;
-	Fl_Value_Slider* degeneration_simplify_slider;
 
-	Fl_Value_Input* WL0;
-	Fl_Value_Input* WH0;
-	Fl_Value_Input* SL;
-
-	Fl_Value_Input* SK_WA;
-	Fl_Value_Input* SK_WB;
-
-
+	//Fl_Value_Slider* simplification_slider;
+	//Fl_Value_Input* WL0;
 };
